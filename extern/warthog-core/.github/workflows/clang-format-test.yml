@@ -1,0 +1,17 @@
+name: clang-format-test
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: DoozyX/clang-format-lint-action@v0.18.1
+      with:
+        source: '.'
+        exclude: './extern ./libs'
+        clangFormatVersion: 18.1.3
