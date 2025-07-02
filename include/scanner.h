@@ -1,18 +1,12 @@
 #pragma once
-#include <jps/jump/jump_point_online.h>
+#include <rjps.h>
 #include <bitset>
 #include <algorithm>
+#include <Log.h>
+
 using namespace jps;
 using namespace warthog::domain;
 
-namespace ScanAttribute
-{
-enum Orientation
-{
-    CW,
-    CCW
-};
-}
 
 struct scanResult
 {
@@ -22,25 +16,6 @@ struct scanResult
     direction d= {};
 };
 
-//check if i is inbtween a and b, doesnt matter a or b is larger or smaller
-static inline bool between2(uint32_t i, uint32_t a, uint32_t b)
-{
-    return(i <= std::max(a, b) && i >= std::min(a, b));
-}
-
-//mask all bit before the offest(inclusive) to 0, offset is 1-based
-template<bool East>
-static inline void maskzero(uint64_t &num, uint32_t offset)
-{
-    if constexpr(East) 
-    {
-        num &= ((~0ull) << offset);
-    }
-    else
-    {
-        num &= ((~0ull) >> offset);
-    }
-}
 
 static void printEastScan(uint64_t i)
 {
@@ -55,47 +30,62 @@ static void printWestScan(uint64_t i)
     std::cout<<s<<"<-"<<'\n';
 }
 
-//return JPS_ID after mooving from a JPS_ID n moves in direction d
-inline pad_id shiftInDir(pad_id id, uint32_t n_moves, direction d, gridmap::bittable m)
+//rotates a direction by 1/8 in CW or CCW
+template<ScanAttribute::Orientation O>
+direction rotate_eighth(direction in_dir)
 {
-    switch (d)
-    {        
-    default:
-    case direction::EAST:
-        return pad_id(id.id + n_moves);
-        break;
-    case direction::WEST:
-        return pad_id(id.id - n_moves);
-        break;        
-    case direction::NORTH:
-        return pad_id(id.id - n_moves * m.width());
-        break;
-    case direction::SOUTH:
-        return pad_id(id.id + n_moves * m.width());
-        break;
-    case direction::NORTHEAST:
-        return pad_id((id.id - n_moves * m.width()) + n_moves);
-        break;
-    case direction::NORTHWEST:
-        return pad_id((id.id - n_moves * m.width()) - n_moves);            
-        break;
-    case direction::SOUTHEAST:
-        return pad_id((id.id + n_moves * m.width()) + n_moves);            
-        break;
-    case direction::SOUTHWEST:
-        return pad_id((id.id + n_moves * m.width()) - n_moves);            
-        break;
+    auto d = direction{};
+    if constexpr (O == ScanAttribute::CCW)
+    {
+        switch (in_dir)
+        {
+        case NORTHEAST:
+            d = NORTH;
+            break;
+        case NORTHWEST:
+            d = WEST;
+            break;
+        case SOUTHEAST:
+            d = EAST;
+            break;
+        case SOUTHWEST:
+            d = SOUTH;
+            break;
+        }
     }
+    else if constexpr (O == ScanAttribute::CW)
+    {
+        switch (in_dir)
+        {
+        case NORTHEAST:
+            d = EAST;
+            break;
+        case NORTHWEST:
+            d = NORTH;
+            break;
+        case SOUTHEAST:
+            d = SOUTH;
+            break;
+        case SOUTHWEST:
+            d = WEST;
+            break;
+        }
+    }
+    return d;
 }
-
 
 class Scanner
 {
 public:
-    Scanner(jump::jump_point_online<>* _jps);
+    Scanner(std::shared_ptr<Tracer> _tracer, jump::jump_point_online<>* _jps);
     ~Scanner(){};
 
-    scanResult init_scan(pad_id start);
+    // returns true if initial scan should be east and west, false if north or south
+    // @warning will shift start up or donw if starts on a corner of an obstacle
+    bool init_scan_eastwest(pad_id& start, direction in_dir);
+    // template<ScanAttribute::Orientation O>
+    // direction init_scan_dir(pad_id start, direction p_dir);
+
     //returns a all convex points of a obstacle
     void scan_obstacle(pad_id start, std::vector<pad_id> &ret, direction dir, bool _top);
     //returns the first poi along obstacle edge
@@ -106,8 +96,10 @@ public:
     template<ScanAttribute::Orientation o>
     void scan(pad_id parent, pad_id start, pad_id &ret);
 
+    pad_id find_turning_point(pad_id start, scanResult scan_res, direction terminate_d, uint32_t xbound, uint32_t ybound);
+
     template<bool East>
-    uint32_t scan_hori(gridmap::bittable _map, pad_id start, scanResult &res);
+    uint32_t scan_hori(gridmap::bittable _map, pad_id start, scanResult &res);    
 
     std::vector<pad_id> test_scan_full(pad_id start, uint32_t bx, uint32_t by);
     uint32_t test_scan_single(pad_id start, bool top, char c);
@@ -123,16 +115,10 @@ private:
     uint32_t scan_south(pad_id start, scanResult &res);
 
     jump::jump_point_online<>* m_jps;
+    std::shared_ptr<Tracer> m_tracer;    
     gridmap::bittable m_map  = {};
 	gridmap::bittable m_rmap = {};
-
-    //if d1 and d2 are in different d set of: {E, N}, {W, S}
-    inline bool EN_diff_WS(direction d1, direction d2)
-    {
-        uint8_t a = std::countr_zero(static_cast<uint8_t>(d1));
-        uint8_t b = std::countr_zero(static_cast<uint8_t>(d2));
-        return (std::max(a, b) - std::min(a, b)) != 2;
-    }
+    
 };
 
 template<bool East>
@@ -159,19 +145,19 @@ uint32_t Scanner::scan_hori(gridmap::bittable _map, pad_id start, scanResult &re
     {
         maskzero<East>(mid, slider.width8_bits);
         maskzero<East>(comp, slider.width8_bits);
-        std::cout<<"mid:    ";
-        printEastScan(mid);
-        std::cout<<"comp:   ";
-        printEastScan(comp);
+        // std::cout<<"mid:    ";
+        // printEastScan(mid);
+        // std::cout<<"comp:   ";
+        // printEastScan(comp);
     }
     else
     {
         maskzero<East>(mid, slider.width8_bits);
         maskzero<East>(comp, slider.width8_bits);
-        std::cout<<"mid:    ";
-        printWestScan(mid);
-        std::cout<<"comp:   ";
-        printWestScan(comp);
+        // std::cout<<"mid:    ";
+        // printWestScan(mid);
+        // std::cout<<"comp:   ";
+        // printWestScan(comp);
     }
     if(comp || mid)
     {

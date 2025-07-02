@@ -1,20 +1,10 @@
-#include <jps/jump/jump_point_online.h>
+#include <rjps.h>
 #include <Log.h>
 #include <scanner.h>
 
 using namespace warthog;
 using namespace warthog::domain;
-using namespace warthog::grid;
-namespace Attributes
-{
-typedef enum : uint8_t
-{
-    North_East = 1<<1,
-    North_West = 1<<2,
-    South_East = 1<<3,
-    South_West = 1<<4
-}Quadrant;
-}
+// using namespace warthog::grid;
 
 class Ray
 {
@@ -23,11 +13,12 @@ private:
     std::shared_ptr<Tracer> m_tracer;    
     gridmap::bittable m_map;
 	gridmap::bittable m_rmap;
-
+    
     uint32_t shoot_ray_north(pad_id start){return shoot_hori_ray<true>(pad_id{m_jps->id_to_rid(jps_id{start}).id}, m_rmap);};
     uint32_t shoot_ray_south(pad_id start){return shoot_hori_ray<false>(pad_id{m_jps->id_to_rid(jps_id{start}).id}, m_rmap);};
     uint32_t shoot_ray_east(pad_id start){return shoot_hori_ray<true>(start, m_map);};
     uint32_t shoot_ray_west(pad_id start){return shoot_hori_ray<false>(start, m_map);};
+
 public:
     Ray(std::shared_ptr<Tracer> tracer, jump::jump_point_online<>* _jps)
         : m_tracer(tracer), m_jps(_jps), m_map(m_jps->get_map()), m_rmap(m_jps->get_rmap()) {};
@@ -39,11 +30,13 @@ public:
     template<grid::direction D>
     uint32_t shoot_diag_ray(pad_id start, domain::gridmap::bittable map);
 
-    template<grid::direction D>
-    pad_id shoot_diag_ray_id(pad_id start, domain::gridmap::bittable map);
+    pad_id shoot_diag_ray_id(pad_id start, domain::gridmap::bittable map, direction dir);
 
     //shoot a diag-first grid ray towards the target, returns the target pad_id if visible, otherwise the first intersection
     pad_id shoot_to_target(pad_id start, pad_id target);
+
+    pad_id shoot_rjps_ray(pad_id start, direction d, std::vector<rjps_node> &vec, rjps_node parent);
+    pad_id shoot_rjps_ray_to_target(pad_id start, pad_id target, direction d, std::vector<rjps_node> &vec, rjps_node parent);
 };
 
 template<bool East>
@@ -82,8 +75,7 @@ uint32_t Ray::shoot_hori_ray(pad_id start, domain::gridmap::bittable map)
 template<grid::direction D>
 uint32_t Ray::shoot_diag_ray(pad_id start, domain::gridmap::bittable map)
 {
-    static_assert(
-	    D == NORTHEAST || D == NORTHWEST || D == SOUTHEAST || D == SOUTHWEST,
+    assert(D == NORTHEAST || D == NORTHWEST || D == SOUTHEAST || D == SOUTHWEST &&
 	    "Must be intercardinal direction");
     int adjx, adjy;
     uint32_t curx, cury, steps{0};
@@ -120,48 +112,3 @@ uint32_t Ray::shoot_diag_ray(pad_id start, domain::gridmap::bittable map)
         }
     }
 }
-
-template<grid::direction D>
-pad_id Ray::shoot_diag_ray_id(pad_id start, domain::gridmap::bittable map)
-{
-    static_assert(
-	    D == NORTHEAST || D == NORTHWEST || D == SOUTHEAST || D == SOUTHWEST,
-	    "Must be intercardinal direction");
-    int adjx, adjy;
-    uint32_t curx, cury;
-    auto c = map.id_to_xy(start);
-    curx = c.first; cury = c.second;
-    switch (D) 
-    {
-    case NORTHEAST :
-        adjx = 1; adjy = -1;
-        break;
-    case NORTHWEST :
-        adjx = -1; adjy = -1;
-        break;
-    case SOUTHEAST :
-        adjx = 1; adjy = 1;
-        break;
-    case SOUTHWEST :
-        adjx = -1; adjy = 1;
-        break;
-    }
-    while(true)
-    {
-        auto next = map.get(map.xy_to_id(curx+adjx, cury+adjy));
-        //stops if next cell is blocked
-        if(next == 0)
-        {
-            return map.xy_to_id(curx, cury);
-        }
-        else 
-        {
-            curx+=adjx; cury+=adjy;
-            m_tracer->expand(curx, cury);             
-        }
-    }
-}
-
-
-
-
