@@ -3,6 +3,9 @@
 #include <scanner.h>
 #include <Ray.h>
 #include <Log.h>
+#include <warthog/heuristic/octile_heuristic.h>
+#include <queue>
+#include <unordered_map>
 // using namespace warthog::domain;
 // using namespace jps;
 
@@ -34,8 +37,8 @@ public:
     Solver(jump::jump_point_online<>* _jps);
     ~Solver() = default;
     
-    void test_func(pad_id id1, pad_id id2);
-    void test_func2(pad_id start, pad_id target);
+    void expand(rjps_node cur, std::vector<rjps_node> &heap);
+    void query(pad_id start, pad_id target);
 
     // std::vector<rjps_node> scan_in_boundary(rjps_node parent, pad_id start);
     template <ScanAttribute::Orientation O>
@@ -51,8 +54,12 @@ private:
     warthog::domain::gridmap::bittable  m_rmap;
     Ray                                 m_ray;
     Scanner                             m_scanner;
+    pad_id                              m_target;
+    heuristic::octile_heuristic         m_heuristic;
+    std::unordered_map<uint64_t, rjps_node> m_node_map;
 
     inline direction target_dir(pad_id start, pad_id target);
+    void init_rjps_nodes(vector<rjps_node> &heap, rjps_node parent, size_t prev_end);
 };
 
 
@@ -100,8 +107,8 @@ uint32_t Solver::scan_in_bound(pad_id start, rjps_node parent, std::vector<rjps_
     { 
         auto ince = grid_ray_incident(parent.id, poi, parent.dir);
         succ = m_ray.shoot_rjps_ray_to_target(ince, poi, dir_info.jps, vec, parent);
-        m_tracer->trace_ray(m_map.id_to_xy(parent.id), m_map.id_to_xy(ince), "white", "shoot ray to point");
-        m_tracer->trace_ray(m_map.id_to_xy(ince), m_map.id_to_xy(succ), "white", "shoot ray to point");
+        m_tracer->trace_ray(m_map.id_to_xy(parent.id), m_map.id_to_xy(ince), "aqua", "shoot ray to point");
+        m_tracer->trace_ray(m_map.id_to_xy(ince), m_map.id_to_xy(succ), "aqua", "shoot ray to point");
         
         //if poi is blocked by another obstacle, recurse scan in both orientation on collision point
         //depending on the orientation and the quadrant, x or y bound is changed
@@ -165,11 +172,19 @@ uint32_t Solver::scan_in_bound(pad_id start, rjps_node parent, std::vector<rjps_
                     ret = s_coord.second;
                 }
             }
-            succ = m_ray.shoot_rjps_ray(succ, dir_info.jps, vec, parent);
-            scan_res.d = dir_info.subseq;
-            scan_res.top = (dir_info.jps == NORTH || dir_info.jps == WEST);
+            //if the turning point was a concave point, continue scan from the next first convex point returned
+            if(scan_res.on_concave) 
+            {
+                succ = shift_in_dir(succ, 1, scan_res.d, m_map);                
+            }
+            //else continue the jps ray then scan in same direction
+            else
+            {
+                succ = m_ray.shoot_rjps_ray(succ, dir_info.jps, vec, parent);             
+                scan_res.d = dir_info.subseq;
+                scan_res.top = (dir_info.jps == NORTH || dir_info.jps == WEST);
+            }
             poi = m_scanner.find_turning_point(succ, scan_res, dir_info.terminate, xbound, ybound);
-            if (!poi.is_none()) m_tracer->expand(m_map.id_to_xy(poi));
         }
     }
     return ret;

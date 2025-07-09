@@ -42,7 +42,6 @@ pad_id Ray::shoot_to_target(pad_id start, pad_id target)
         else 
         {
             curx+=adjx; cury+=adjy;
-            // m_tracer->expand(curx, cury);
         }
     }
     m_tracer->trace_ray(m_map.id_to_xy(start), std::make_pair(curx, cury), "blue", "shoot to target");
@@ -52,7 +51,6 @@ pad_id Ray::shoot_to_target(pad_id start, pad_id target)
         if(cury < ty)
         {
             uint32_t steps = shoot_ray_south(start);
-            // m_tracer->expand(curx, cury + steps);
             if(cury + steps >= ty)
             {
                 m_tracer->trace_ray(m_map.id_to_xy(start), m_map.id_to_xy(target), "blue", "shoot to target");
@@ -68,7 +66,6 @@ pad_id Ray::shoot_to_target(pad_id start, pad_id target)
         else    
         {
             uint32_t steps = shoot_ray_north(start);
-            // m_tracer->expand(curx, cury - steps);
             if(cury - steps <= ty)
             {
                 m_tracer->trace_ray(m_map.id_to_xy(start), m_map.id_to_xy(target), "blue", "shoot to target");
@@ -87,7 +84,6 @@ pad_id Ray::shoot_to_target(pad_id start, pad_id target)
         if(curx < tx)
         {
             uint32_t steps = shoot_ray_east(start);
-            // m_tracer->expand(curx + steps, cury);
             if(curx + steps >= tx)
             {
                 m_tracer->trace_ray(m_map.id_to_xy(start), m_map.id_to_xy(target), "blue", "shoot to target");
@@ -103,7 +99,6 @@ pad_id Ray::shoot_to_target(pad_id start, pad_id target)
         else    
         {
             uint32_t steps = shoot_ray_west(start);
-            // m_tracer->expand(curx - steps, cury);
             if(curx - steps <= tx)
             {
                 m_tracer->trace_ray(m_map.id_to_xy(start), m_map.id_to_xy(target), "blue", "shoot to target");
@@ -126,29 +121,33 @@ pad_id Ray::shoot_rjps_ray(pad_id start, direction d, std::vector<rjps_node> &ve
     m_tracer->trace_ray(m_map.id_to_xy(start), m_map.id_to_xy(pad_id{ret.second}), "green", "jps ray");
     while (ret.first > 0)
     {
+        //at this point, d is the direction of jps when pushed onto the vector, the scan quadrant will be updated at the end of scanning the parent's quadrant
+        vec.emplace_back(ret.second, nullptr, m_map.id_to_xy(ret.second), d);
         auto r = m_map.id_to_xy(pad_id{ret.second});
-        // m_tracer->expand(r);
+        assert(r.first < 10000 && r.second < 10000);
         ret = m_jps->jump_cardinal(d, ret.second, m_jps->id_to_rid(ret.second));
         m_tracer->trace_ray(r, m_map.id_to_xy(pad_id{ret.second}), "green", "jps ray");
     }
     return pad_id{ret.second.id};
 }
 
-pad_id Ray::shoot_rjps_ray_to_target(pad_id start, pad_id target,direction d, std::vector<rjps_node> &vec, rjps_node parent)
+pad_id Ray::shoot_rjps_ray_to_target(pad_id start, pad_id target, direction d, std::vector<rjps_node> &vec, rjps_node parent)
 {
     auto steps = uint32_t{0};
     auto ret = m_jps->jump_cardinal(d, jps_id{start.id}, m_jps->id_to_rid(jps_id{start}));
     m_tracer->trace_ray(m_map.id_to_xy(start), m_map.id_to_xy(pad_id{ret.second}), "green", "jps ray");
     while (ret.first > 0)
     {
+        //at this point, d is the direction of jps when pushed onto the vector, the scan quadrant will be updated at the end of scanning the parent's quadrant
+        vec.emplace_back(ret.second, nullptr, m_map.id_to_xy(ret.second), d);
         auto r = m_map.id_to_xy(pad_id{ret.second});
+        assert(r.first < 10000 && r.second < 10000);
         if(ret.second == target)
         {
             return target;
         }
         else
         {
-            m_tracer->expand(r);
             ret = m_jps->jump_cardinal(d, ret.second, m_jps->id_to_rid(ret.second));
             m_tracer->trace_ray(r, m_map.id_to_xy(pad_id{ret.second}), "green", "jps ray");
         }
@@ -181,7 +180,6 @@ pad_id Ray::shoot_diag_ray_id(pad_id start, domain::gridmap::bittable map, direc
         else 
         {
             curx+=adjx; cury+=adjy;
-            // m_tracer->expand(curx, cury);             
         }
     }
 }

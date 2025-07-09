@@ -35,7 +35,11 @@ public:
     //shoot a diag-first grid ray towards the target, returns the target pad_id if visible, otherwise the first intersection
     pad_id shoot_to_target(pad_id start, pad_id target);
 
+    //shoots jps ray in direction d, appends all jump points to vec ref, returns dead end point
     pad_id shoot_rjps_ray(pad_id start, direction d, std::vector<rjps_node> &vec, rjps_node parent);
+
+    //shoots a jps ray in direction d, terminates and returns target if its reached
+    //otherwised funcitons identical to shoot_rjps_ray 
     pad_id shoot_rjps_ray_to_target(pad_id start, pad_id target, direction d, std::vector<rjps_node> &vec, rjps_node parent);
 };
 

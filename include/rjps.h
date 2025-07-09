@@ -1,23 +1,34 @@
 //a colletion of definitions/utils used in rjps algorithm
 #pragma once
 #include <jps/jump/jump_point_online.h>
+#include <bitset>
+#include <algorithm>
+#include <map>
 
 using namespace warthog::domain;
 using namespace jps;
 struct rjps_node
 {
     pad_id id;
-    pad_id parent;
+    rjps_node* parent;
     direction dir;
-    uint32_t xbound;
+    direction quad_mask = NONE;
+    
+    uint32_t xbound; 
     uint32_t ybound;
-    int gval;
-    int hval;
+    double gval = DBL_MAX;
+    double hval;
+    // bool closed = false;
+    constexpr inline const size_t get_key(){return (size_t)dir << 32 | (unsigned int)id;};
+    const inline bool quad_expanded(const direction& quad){return quad_mask & quad;};
+    inline void close_quad(const direction& quad){quad_mask = (direction)(quad|quad_mask);};
 
-    rjps_node(pad_id _i, pad_id _p, std::pair<uint32_t, uint32_t> bounds, direction _dir) : 
+    rjps_node(pad_id _i, rjps_node* _p, std::pair<uint32_t, uint32_t> bounds, direction _dir) : 
         id(_i), parent(_p), hval(0), dir(_dir), xbound(bounds.first), ybound(bounds.second){};    
-    rjps_node(pad_id _i, pad_id _p, uint32_t _xb, uint32_t _yb, direction _dir) : 
+    rjps_node(pad_id _i, rjps_node* _p, uint32_t _xb, uint32_t _yb, direction _dir) : 
         id(_i), parent(_p), hval(0), dir(_dir), xbound(_xb), ybound(_yb){};
+    rjps_node(pad_id _i, rjps_node* _p) : id(_i), parent(_p){};
+    rjps_node(){};
 };
 
 namespace ScanAttribute
@@ -81,6 +92,29 @@ static constexpr std::array<std::array<direction, 2>, 4>d_scan{{
 {EAST, SOUTH}, 
 {WEST, NORTH}, 
 {NORTH, EAST}}};
+
+using namespace std;
+static std::map<std::string, direction>quad{
+    {to_string(NORTHEAST) + to_string(NORTH) + to_string(true),  NORTHWEST},
+    {to_string(NORTHEAST) + to_string(NORTH) + to_string(false), NORTHEAST},
+    {to_string(NORTHEAST) + to_string(EAST)  + to_string(true),  NORTHEAST},
+    {to_string(NORTHEAST) + to_string(EAST) + to_string(false),  SOUTHEAST},
+
+    {to_string(NORTHWEST) + to_string(NORTH) + to_string(true),  NORTHWEST},
+    {to_string(NORTHWEST) + to_string(NORTH) + to_string(false), NORTHEAST},
+    {to_string(NORTHWEST) + to_string(WEST)  + to_string(true),  NORTHWEST},
+    {to_string(NORTHWEST) + to_string(WEST) + to_string(false),  SOUTHWEST},
+
+    {to_string(SOUTHEAST) + to_string(SOUTH) + to_string(true),  SOUTHWEST},
+    {to_string(SOUTHEAST) + to_string(SOUTH) + to_string(false), SOUTHEAST},
+    {to_string(SOUTHEAST) + to_string(EAST)  + to_string(true),  NORTHEAST},
+    {to_string(SOUTHEAST) + to_string(EAST) + to_string(false),  SOUTHEAST},
+
+    {to_string(SOUTHWEST) + to_string(SOUTH) + to_string(true),  SOUTHWEST},
+    {to_string(SOUTHWEST) + to_string(SOUTH) + to_string(false), SOUTHEAST},
+    {to_string(SOUTHWEST) + to_string(WEST)  + to_string(true),  NORTHWEST},
+    {to_string(SOUTHWEST) + to_string(WEST) + to_string(false),  SOUTHWEST}
+};
 
 // NORTHEAST 0
 // NORTHWEST 1
@@ -154,6 +188,64 @@ static inline pad_id shift_in_dir(pad_id id, uint32_t n_moves, direction d, grid
         return pad_id((id.id + n_moves * m.width()) - n_moves);            
         break;
     }
+}
+
+static void printEastScan(uint64_t i)
+{
+    std::string s = std::bitset<64>(i).to_string();
+    std::reverse(s.begin(), s.end());
+    std::cout<<"->"<<s<<'\n';
+}
+
+static void printWestScan(uint64_t i)
+{
+    std::string s = std::bitset<64>(i).to_string();
+    std::reverse(s.begin(), s.end());
+    std::cout<<s<<"<-"<<'\n';
+}
+
+//rotates a direction by 1/8 in CW or CCW
+template<ScanAttribute::Orientation O>
+direction rotate_eighth(direction in_dir)
+{
+    auto d = direction{};
+    if constexpr (O == ScanAttribute::CCW)
+    {
+        switch (in_dir)
+        {
+        case NORTHEAST:
+            d = NORTH;
+            break;
+        case NORTHWEST:
+            d = WEST;
+            break;
+        case SOUTHEAST:
+            d = EAST;
+            break;
+        case SOUTHWEST:
+            d = SOUTH;
+            break;
+        }
+    }
+    else if constexpr (O == ScanAttribute::CW)
+    {
+        switch (in_dir)
+        {
+        case NORTHEAST:
+            d = EAST;
+            break;
+        case NORTHWEST:
+            d = NORTH;
+            break;
+        case SOUTHEAST:
+            d = SOUTH;
+            break;
+        case SOUTHWEST:
+            d = WEST;
+            break;
+        }
+    }
+    return d;
 }
 
 //if d1 and d2 are in d set of: {E, W} OR {N, S}

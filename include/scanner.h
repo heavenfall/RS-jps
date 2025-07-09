@@ -1,7 +1,5 @@
 #pragma once
 #include <rjps.h>
-#include <bitset>
-#include <algorithm>
 #include <Log.h>
 
 using namespace jps;
@@ -10,69 +8,12 @@ using namespace warthog::domain;
 
 struct scanResult
 {
-    uint32_t c = {}; //zero count of the comp stride
-    uint32_t m = {}; //zero count of the mid stride
-    bool top   = {};
-    direction d= {};
+    uint32_t c =    {}; //zero count of the comp stride
+    uint32_t m =    {}; //zero count of the mid stride
+    bool top   =    {};
+    bool on_concave {false};//if the scan terminated on a concave point
+    direction d=    {};
 };
-
-
-static void printEastScan(uint64_t i)
-{
-    std::string s = std::bitset<64>(i).to_string();
-    std::reverse(s.begin(), s.end());
-    std::cout<<"->"<<s<<'\n';
-}
-static void printWestScan(uint64_t i)
-{
-    std::string s = std::bitset<64>(i).to_string();
-    std::reverse(s.begin(), s.end());
-    std::cout<<s<<"<-"<<'\n';
-}
-
-//rotates a direction by 1/8 in CW or CCW
-template<ScanAttribute::Orientation O>
-direction rotate_eighth(direction in_dir)
-{
-    auto d = direction{};
-    if constexpr (O == ScanAttribute::CCW)
-    {
-        switch (in_dir)
-        {
-        case NORTHEAST:
-            d = NORTH;
-            break;
-        case NORTHWEST:
-            d = WEST;
-            break;
-        case SOUTHEAST:
-            d = EAST;
-            break;
-        case SOUTHWEST:
-            d = SOUTH;
-            break;
-        }
-    }
-    else if constexpr (O == ScanAttribute::CW)
-    {
-        switch (in_dir)
-        {
-        case NORTHEAST:
-            d = EAST;
-            break;
-        case NORTHWEST:
-            d = NORTH;
-            break;
-        case SOUTHEAST:
-            d = SOUTH;
-            break;
-        case SOUTHWEST:
-            d = WEST;
-            break;
-        }
-    }
-    return d;
-}
 
 class Scanner
 {
@@ -96,7 +37,7 @@ public:
     template<ScanAttribute::Orientation o>
     void scan(pad_id parent, pad_id start, pad_id &ret);
 
-    pad_id find_turning_point(pad_id start, scanResult scan_res, direction terminate_d, uint32_t xbound, uint32_t ybound);
+    pad_id find_turning_point(pad_id start, scanResult &scan_res, direction terminate_d, uint32_t xbound, uint32_t ybound);
 
     template<bool East>
     uint32_t scan_hori(gridmap::bittable _map, pad_id start, scanResult &res);    

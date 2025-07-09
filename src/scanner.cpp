@@ -175,10 +175,11 @@ pad_id Scanner::scan_obstacle(pad_id start, scanResult &res)
 //1. pad_id::None, if the scan leaves the bounding space
 //2. The first convex point which results in scanning in opposite direction
 //3. If poi is concave, return the next first convext point by continuing scan
-pad_id Scanner::find_turning_point(pad_id start, scanResult scan_res, direction terminate_d, uint32_t xbound, uint32_t ybound)
+pad_id Scanner::find_turning_point(pad_id start, scanResult &scan_res, direction terminate_d, uint32_t xbound, uint32_t ybound)
 {
     auto nextpos = pad_id{}, curpos = start;
-    bool in_bound = true, east_or_north, ret_on_cv = false;
+    bool in_bound = true, east_or_north;
+    scan_res.on_concave = false;
     direction tempd;
     // uint32_t dir_ind = std::countr_zero<uint8_t>(p_dir)-4;
     // scan_res.top = init_scan_top[dir_ind][(scan_dir == EAST || scan_dir == WEST)];
@@ -205,7 +206,7 @@ pad_id Scanner::find_turning_point(pad_id start, scanResult scan_res, direction 
         }
         nextpos = shift_in_dir(curpos, steps, scan_res.d, m_map);
         auto c = m_map.id_to_xy(curpos), n = m_map.id_to_xy(nextpos);
-        m_tracer->trace_ray(c, n, "green", "scanning");
+        // m_tracer->trace_ray(c, n, "green", "scanning");
         if (scan_res.d==EAST||scan_res.d==WEST)
         {
             if(between2(xbound, c.first, n.first)) 
@@ -228,16 +229,17 @@ pad_id Scanner::find_turning_point(pad_id start, scanResult scan_res, direction 
             //shift 1 because the scan stops at a step before the poi
             curpos = shift_in_dir(nextpos, 1, scan_res.d, m_map);
             if(scan_res.top)         //4
-            {
-                // if(!EeastorNorth) res.top = true;                
+            {  
                 scan_res.d = east_or_north? dir_ccw(scan_res.d): dir_cw(scan_res.d);
             }
             else if(!scan_res.top)   //1
             {
-                // if(EeastorNorth) res.top = false;
                 scan_res.d = east_or_north? dir_cw(scan_res.d): dir_ccw(scan_res.d);                
             }            
-            if (scan_res.d == terminate_d || ret_on_cv) return curpos;
+
+            if(EN_diff_WS(scan_res.d, tempd)) scan_res.top = !scan_res.top; //magic
+
+            if (scan_res.d == terminate_d || scan_res.on_concave) return curpos;
             //curpos is currently on the turning point, shift 1 step before next scan
             else curpos = shift_in_dir(curpos, 1, scan_res.d, m_map);
         }
@@ -245,20 +247,18 @@ pad_id Scanner::find_turning_point(pad_id start, scanResult scan_res, direction 
         {
             if(scan_res.top)         //3
             {
-                // if(EeastorNorth) res.top = false;
                 scan_res.d = east_or_north? dir_cw(scan_res.d): dir_ccw(scan_res.d);
             }
             else if(!scan_res.top)   //2
             {
-                // if(!EeastorNorth) res.top = true;
                 scan_res.d = east_or_north? dir_ccw(scan_res.d): dir_cw(scan_res.d);
             }
             curpos = nextpos;
             //if first poi is on a concave point, return the next convex point
             //"switches on" the condition
-            ret_on_cv |= (scan_res.d == terminate_d);
+            scan_res.on_concave |= (scan_res.d == terminate_d);
+            if(EN_diff_WS(scan_res.d, tempd)) scan_res.top = !scan_res.top; //magic
         }
-        if(EN_diff_WS(scan_res.d, tempd)) scan_res.top = !scan_res.top; //magic
     }
 }
 

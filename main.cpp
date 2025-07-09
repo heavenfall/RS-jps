@@ -67,12 +67,18 @@ void test3()
     warthog::domain::gridmap map(mapfile.c_str());
     jps::jump::jump_point_online jps(&map);
     Solver s(&jps);
-    pad_id id = map.to_padded_id_from_unpadded(uint32_t(162), uint32_t(74));
-    pad_id id2 = map.to_padded_id_from_unpadded(uint32_t(37), uint32_t(17));
-    pad_id id3 = map.to_padded_id_from_unpadded(uint32_t(22), uint32_t(11));
+    pad_id start = map.to_padded_id_from_unpadded(uint32_t(71), uint32_t(107));
+    pad_id target = map.to_padded_id_from_unpadded(uint32_t(72), uint32_t(84));
 
-    s.test_func(id, id2);
-    // s.test_func2(id, id3);
+    s.query(start, target);
+    // auto test = rjps_node{};
+    // test.close_quad(NORTHEAST);
+    // test.close_quad(NORTHWEST);
+    // test.close_quad(SOUTHEAST);
+    // std::cout << std::bitset<8>(test.quad_mask).to_string() <<'\n';
+    // test.quad_mask = (direction)45;
+    // std::cout << std::bitset<8>(test.quad_mask).to_string();
+
 }
 
 int main(int argc, char const *argv[])
