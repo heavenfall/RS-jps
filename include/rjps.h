@@ -4,6 +4,7 @@
 #include <bitset>
 #include <algorithm>
 #include <map>
+#include <stack>
 
 using namespace warthog::domain;
 using namespace jps;
@@ -40,16 +41,7 @@ enum Orientation
 };
 }
 
-// namespace Attributes
-// {
-// typedef enum : uint8_t
-// {
-//     North_East = 1<<1,
-//     North_West = 1<<2,
-//     South_East = 1<<3,
-//     South_West = 1<<4
-// }Quadrant;
-// }
+// auto dir_ind =std::countr_zero<uint8_t>(p_dir) - 4;
 
 // NORTHEAST 0
 // NORTHWEST 1
@@ -120,6 +112,7 @@ static std::map<std::string, direction>quad{
 // NORTHWEST 1
 // SOUTHEAST 2
 // SOUTHWEST 3
+// 0:x  1:y
 static constexpr std::array<std::array<int, 2>, 4> adj{{
 {1, -1},
 {-1, -1},

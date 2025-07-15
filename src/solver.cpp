@@ -4,6 +4,7 @@ Solver::Solver(jump::jump_point_online<>* _jps) :
     m_jps(_jps), m_tracer(new Tracer), m_map(m_jps->get_map()), m_rmap(m_jps->get_rmap()), 
     m_ray(m_tracer, m_jps), m_scanner(m_tracer, m_jps), m_heuristic(m_map.width(), m_map.height())
 {
+    m_tracer->set_dim(m_map.dim());
     m_node_map.reserve(2048);
 }
 
@@ -71,13 +72,11 @@ void Solver::expand(rjps_node cur, std::vector<rjps_node> &heap)
 {
     auto cur_coord = m_map.id_to_xy(cur.id);
     auto temp = pad_id{};
-    // auto vec = std::vector<rjps_node>{};
     auto s_dir = scan_dir{};
-    auto temp_end = heap.end();
     //if target is in same quadrant, shoot to it
     if(target_dir(cur.id, m_target) == cur.dir)
     {
-        temp = m_ray.shoot_to_target(cur.id, m_target);
+        temp = m_ray.shoot_to_target(cur.id, m_target, cur.dir);
         if(temp == m_target)
         {
             auto t = rjps_node{m_target, &m_node_map.find(uint64_t(cur.id))->second, m_map.id_to_xy(m_target), NONE};
@@ -88,7 +87,7 @@ void Solver::expand(rjps_node cur, std::vector<rjps_node> &heap)
             return;
         }
     }
-    temp = m_ray.shoot_diag_ray_id(cur.id, m_map, cur.dir);
+    temp = m_ray.shoot_diag_ray_id(cur.id, cur.dir);
     auto on_convex = init_scan_dir(temp, cur.dir, s_dir);
     auto cw_start = temp, ccw_start = temp;
     if(on_convex)
@@ -158,7 +157,6 @@ void Solver::query(pad_id start, pad_id target)
     auto start_coord = m_map.id_to_xy(start), target_coord = m_map.id_to_xy(target);
     m_tracer->init(start_coord, target_coord);
     auto cmp = [](rjps_node a, rjps_node b){return (a.gval + a.hval) > (b.gval + b.hval);};
-    // std::priority_queue<rjps_node, std::vector<rjps_node>, decltype(cmp)> pqueue;
     std::vector<rjps_node> heap{};
     heap.reserve(2048);
     
@@ -183,12 +181,13 @@ void Solver::query(pad_id start, pad_id target)
     int iter = 0;
     while(!heap.empty())
     {
-        if(iter++; iter > 5000)
+        if(iter++; iter > 500)
         {
             std::cout<<"limit exceed\n";
             break;
         }
         auto cur = heap.front();
+        auto cur_coord = m_map.id_to_xy(cur.id);
         if(cur.id == m_target)
         {
             break;
@@ -196,19 +195,41 @@ void Solver::query(pad_id start, pad_id target)
         std::pop_heap(heap.begin(), heap.end(), cmp);
         heap.pop_back();
         auto tmp_size = heap.size();
-        m_tracer->expand(m_map.id_to_xy(cur.id), "orange", "expanding, g: " + to_string(cur.gval) + " ,f: "+ to_string(cur.gval + cur.hval));
+        m_tracer->expand(cur_coord, "orange", "expanding, g: " + to_string(cur.gval) + " ,f: "+ to_string(cur.gval + cur.hval));
+        m_tracer->draw_bounds(cur_coord, cur.dir);
         expand(cur, heap);
         if(heap.size() > tmp_size)
         {
+            init_rjps_nodes(heap, cur, tmp_size);
             for(auto i = tmp_size; i < heap.size(); i++)
             {
                 const auto &n = heap[i];
                 m_tracer->expand(m_map.id_to_xy(n.id), "fuchsia", "turning points");
             }
-            init_rjps_nodes(heap, cur, tmp_size);
             std::make_heap(heap.begin(), heap.end(), cmp);
         }
+        m_tracer->close(cur_coord);
     }
+    auto c = heap.front();
+    auto stk = std::stack<rjps_node>{};
+    stk.push(c);
+    m_tracer->expand(m_map.id_to_xy(c.id), "blue", "path");
+    auto p = c.parent;
+    while (p != nullptr)
+    {
+        c = *p;
+        p = c.parent;
+        m_tracer->expand(m_map.id_to_xy(c.id), "blue", "path");
+        stk.push(c);
+    }
+    stk.pop();
+    while (!stk.empty())
+    {
+        const auto &cur = stk.top();
+        m_ray.shoot_to_target(cur.parent->id, cur.id, cur.parent->dir);
+        stk.pop();
+    }
+    
 }
 
 pad_id Solver::grid_ray_incident(pad_id from, pad_id to, direction d)

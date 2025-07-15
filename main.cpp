@@ -1,12 +1,12 @@
 #include "main.h"
 using namespace std;
 
-static const string mapfile = "den011d.map";
+static const string mapname = "den011d.map";
 // static const string mapfile = "a.map";
 // static const string mapfile = "small.map";
 void scanTest()
 {
-    warthog::domain::gridmap map(mapfile.c_str());    
+    warthog::domain::gridmap map(mapname.c_str());    
     jps::jump::jump_point_online jps(&map);
     Scanner scanner(std::make_shared<Tracer>(), &jps);
     int a, b, steps, xx, yy;
@@ -47,7 +47,7 @@ void scanTest()
 
 void scanTest2()
 {
-    warthog::domain::gridmap map(mapfile.c_str());    
+    warthog::domain::gridmap map(mapname.c_str());    
     jps::jump::jump_point_online jps(&map);
     Scanner scanner(std::make_shared<Tracer>(), &jps);
     pad_id testid = map.to_padded_id_from_unpadded(153, 61);
@@ -64,21 +64,14 @@ void scanTest2()
 
 void test3()
 {
+    auto mapfile = string{"../maps/" + mapname};
     warthog::domain::gridmap map(mapfile.c_str());
     jps::jump::jump_point_online jps(&map);
     Solver s(&jps);
-    pad_id start = map.to_padded_id_from_unpadded(uint32_t(71), uint32_t(107));
-    pad_id target = map.to_padded_id_from_unpadded(uint32_t(72), uint32_t(84));
+    pad_id start = map.to_padded_id_from_unpadded(uint32_t(155), uint32_t(51));
+    pad_id target = map.to_padded_id_from_unpadded(uint32_t(11), uint32_t(25));
 
     s.query(start, target);
-    // auto test = rjps_node{};
-    // test.close_quad(NORTHEAST);
-    // test.close_quad(NORTHWEST);
-    // test.close_quad(SOUTHEAST);
-    // std::cout << std::bitset<8>(test.quad_mask).to_string() <<'\n';
-    // test.quad_mask = (direction)45;
-    // std::cout << std::bitset<8>(test.quad_mask).to_string();
-
 }
 
 int main(int argc, char const *argv[])

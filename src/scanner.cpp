@@ -206,7 +206,7 @@ pad_id Scanner::find_turning_point(pad_id start, scanResult &scan_res, direction
         }
         nextpos = shift_in_dir(curpos, steps, scan_res.d, m_map);
         auto c = m_map.id_to_xy(curpos), n = m_map.id_to_xy(nextpos);
-        // m_tracer->trace_ray(c, n, "green", "scanning");
+        m_tracer->trace_ray(c, n, "green", "scanning");
         if (scan_res.d==EAST||scan_res.d==WEST)
         {
             if(between2(xbound, c.first, n.first)) 
