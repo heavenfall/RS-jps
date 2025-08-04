@@ -7,4 +7,5 @@ include/solver.h
 include/Log.h
 include/Ray.h
 include/rjps.h
+include/cfg.h
 )

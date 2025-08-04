@@ -27,11 +27,12 @@ public:
     void set_dim(warthog::memory::bittable_dimension _dim){m_dim = _dim;};
 
     void init(pair<uint32_t, uint32_t> start, pair<uint32_t, uint32_t> finish);
+    void close();
     
     void expand(uint32_t x, uint32_t y, string color, string type);
     void expand(std::pair<uint32_t, uint32_t> p, string color, string type);
 
-    void close(std::pair<uint32_t, uint32_t> p);
+    void close_node(std::pair<uint32_t, uint32_t> p);
 
     //draws a 2d ray from start to finish, clears after 1 step
     void trace_ray(pair<uint32_t, uint32_t> start, pair<uint32_t, uint32_t> finish, string color, string type);

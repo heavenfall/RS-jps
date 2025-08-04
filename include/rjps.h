@@ -8,6 +8,13 @@
 
 using namespace warthog::domain;
 using namespace jps;
+
+enum class SolverTraits
+{
+    Default,
+    OutputToPosthoc
+};
+
 struct rjps_node
 {
     pad_id id;
@@ -20,9 +27,8 @@ struct rjps_node
     double gval = DBL_MAX;
     double hval;
     // bool closed = false;
-    constexpr inline const size_t get_key(){return (size_t)dir << 32 | (unsigned int)id;};
-    const inline bool quad_expanded(const direction& quad){return quad_mask & quad;};
-    inline void close_quad(const direction& quad){quad_mask = (direction)(quad|quad_mask);};
+    static const inline bool quad_closed(const rjps_node& n, const direction& quad){return n.quad_mask & quad;};
+    static inline void close_quad(rjps_node& n, const direction& quad){n.quad_mask = (direction)(quad|n.quad_mask);};
 
     rjps_node(pad_id _i, rjps_node* _p, std::pair<uint32_t, uint32_t> bounds, direction _dir) : 
         id(_i), parent(_p), hval(0), dir(_dir), xbound(bounds.first), ybound(bounds.second){};    
@@ -39,6 +45,193 @@ enum Orientation
     CW,
     CCW
 };
+
+enum Octants 
+{
+    NNW,
+    NNE,
+    SSW, 
+    SSE,
+    ENE,
+    ESE,
+    WNW,
+    WSW
+};
+
+template <direction D>
+static inline bool on_left_octant(std::pair<uint32_t, uint32_t> f, std::pair<uint32_t, uint32_t> t)
+{
+    static_assert(
+    D == NORTHEAST || D == NORTHWEST || D == SOUTHEAST || D == SOUTHWEST,
+    "D must be inter-cardinal.");
+    int dx = std::abs((int)t.first - (int)f.first), dy = std::abs((int)t.second - (int)f.second);
+    using ScanAttribute::Octants;
+    if      constexpr(D == NORTHEAST || D == SOUTHWEST)
+    {
+        return(dy > dx);
+    }
+    else if constexpr(D == NORTHWEST || D == SOUTHEAST)
+    {
+        return(dx > dy);
+    }
+}
+
+template <direction D>
+constexpr Octants left_octant()
+{
+    static_assert(
+	    D == NORTHEAST || D == NORTHWEST || D == SOUTHEAST || D == SOUTHWEST,
+	    "D must be inter-cardinal.");
+    using ScanAttribute::Octants;
+    if      (D == NORTHEAST) return Octants::NNE;
+    else if (D == NORTHWEST) return Octants::WNW;
+    else if (D == SOUTHEAST) return Octants::ESE;
+    else if (D == SOUTHWEST) return Octants::SSW;
+}
+
+template <direction D>
+constexpr Octants right_octant()
+{
+    static_assert(
+	    D == NORTHEAST || D == NORTHWEST || D == SOUTHEAST || D == SOUTHWEST,
+	    "D must be inter-cardinal.");
+    using ScanAttribute::Octants;
+    if      (D == NORTHEAST) return Octants::ENE;
+    else if (D == NORTHWEST) return Octants::NNW;
+    else if (D == SOUTHEAST) return Octants::SSE;
+    else if (D == SOUTHWEST) return Octants::WSW;
+}
+
+template<ScanAttribute::Orientation O, ScanAttribute::Octants Octant>
+constexpr inline direction get_subseq_dir()
+{
+    using ScanAttribute::Octants;
+    if constexpr (O == ScanAttribute::CW)
+    {
+        if constexpr(Octant == NNW || Octant == NNE)
+        {
+            return EAST;
+        }
+        else if constexpr(Octant == ENE || Octant == ESE)
+        {
+            return SOUTH;
+        }
+        else if constexpr(Octant == SSE || Octant == SSW)
+        {
+            return WEST;
+        }
+        else if constexpr(Octant == WSW || Octant == WNW)
+        {
+            return NORTH;
+        }
+    }
+    else
+    {
+        if constexpr(Octant == NNW || Octant == NNE)
+        {
+            return WEST;
+        }
+        else if constexpr(Octant == ENE || Octant == ESE)
+        {
+            return NORTH;
+        }
+        else if constexpr(Octant == SSE || Octant == SSW)
+        {
+            return EAST;
+        }
+        else if constexpr(Octant == WSW || Octant == WNW)
+        {
+            return SOUTH;
+        }
+    }
+}
+
+template<ScanAttribute::Octants Octant>
+constexpr inline direction get_jps_dir()
+{
+    using ScanAttribute::Octants;
+    if constexpr(Octant == NNW || Octant == NNE)
+    {
+       return NORTH;
+    }
+    else if constexpr(Octant == ENE || Octant == ESE)
+    {
+       return EAST;
+    }
+    else if constexpr(Octant == SSE || Octant == SSW)
+    {
+       return SOUTH;
+    }
+    else if constexpr(Octant == WSW || Octant == WNW)
+    {
+       return WEST;
+    }
+}
+
+template<ScanAttribute::Orientation O, ScanAttribute::Octants Octant>
+constexpr inline direction get_terminate_dir()
+{
+    using ScanAttribute::Octants;
+    if constexpr (O == ScanAttribute::CW)
+    {
+        if constexpr(Octant == NNE || Octant == NNW)
+        {
+            return WEST;
+        }
+        else if constexpr(Octant == ENE || Octant == ESE)
+        {
+            return NORTH;
+        }
+        else if constexpr(Octant == SSE || Octant == SSW)
+        {
+            return EAST;
+        }
+        else if constexpr(Octant == WSW || Octant == WNW)
+        {
+            return SOUTH;
+        }
+    }
+    else
+    {
+        if constexpr(Octant == NNE || Octant == NNW)
+        {
+            return EAST;
+        }
+        else if constexpr(Octant == ENE || Octant == ESE)
+        {
+            return SOUTH;
+        }
+        else if constexpr(Octant == SSE || Octant == SSW)
+        {
+            return WEST;
+        }
+        else if constexpr(Octant == WSW || Octant == WNW)
+        {
+            return NORTH;
+        }
+    }
+}
+
+template<ScanAttribute::Octants Octant>
+constexpr inline bool get_top()
+{
+    using ScanAttribute::Octants;
+    return (Octant == NNE || Octant == NNW || Octant == WNW || Octant == WSW);
+}
+
+
+inline constexpr bool horizontally_bound(Octants O)
+{
+    return (O == Octants::NNE || O == Octants::NNW|| O == Octants::SSE|| O == Octants::SSW);
+}
+
+static Octants target_octant(std::pair<uint32_t, uint32_t> f, std::pair<uint32_t, uint32_t> t)
+{
+    int x = (int)t.first - (int)f.first, y = (int)t.second - (int)f.second;
+    if(x>0 && y>x) return Octants::SSW;
+    else return Octants::SSE;
+}
+
 }
 
 // auto dir_ind =std::countr_zero<uint8_t>(p_dir) - 4;

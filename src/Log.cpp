@@ -19,7 +19,7 @@ void Tracer::expand(std::pair<uint32_t, uint32_t> p, string color, string type)
     m_trace << trace;
 }
 
-void Tracer::close(std::pair<uint32_t, uint32_t> p)
+void Tracer::close_node(std::pair<uint32_t, uint32_t> p)
 {
     auto x = uint32_t{p.first}, y = uint32_t{p.second};  
     if (adj_for_padding)
@@ -120,4 +120,9 @@ void Tracer::init(pair<uint32_t, uint32_t> start, pair<uint32_t, uint32_t> finis
     m_trace << "- { type: " << type << ", tag: grid"<< ", color: green" << ", id: " << to_string(start.first) + ":" + to_string(start.second) << ", x: " << start.first << ", y: " << sy << "}\n";
     type = "destination";
     m_trace << "- { type: " << type << ", tag: grid"<< ", color: blue" <<", id: " << to_string(finish.first) + ":" + to_string(finish.second) << ", x: " << finish.first << ", y: " << fy << "}\n";
+}
+
+void Tracer::close()
+{
+    m_trace.close();
 }

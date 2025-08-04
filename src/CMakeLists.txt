@@ -5,4 +5,5 @@ scanner.cpp
 solver.cpp
 Log.cpp
 Ray.cpp
+cfg.cpp
 )
