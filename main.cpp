@@ -118,9 +118,9 @@ void test3(warthog::util::scenario_manager &scen_mngr, string mapname, size_t i)
     }
 }
 
-static const string MAPNAME = "w_woundedcoast";
-constexpr bool test = false;
-static const int TESTCASE = 2000;
+static const string MAPNAME = "scene_sp_cha_01";
+constexpr bool test = true;
+static const int TESTCASE = 300;
 int main(int argc, char** argv)
 {
     // parse arguments

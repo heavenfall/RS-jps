@@ -212,11 +212,27 @@ constexpr inline direction get_terminate_dir()
     }
 }
 
+//helper function to determine if a comp stride is the top or not for scanning base on scan direction and octant
 template<ScanAttribute::Octants Octant>
-constexpr inline bool get_top()
+inline bool get_init_scan_top(direction scan_dir)
 {
     using ScanAttribute::Octants;
-    return (Octant == NNE || Octant == NNW || Octant == WNW || Octant == WSW);
+    if constexpr(Octant == NNE || Octant == ENE)        //northeast
+    {
+       return (scan_dir == EAST || scan_dir == WEST);
+    }
+    else if constexpr(Octant == NNW || Octant == WNW)   //northwest
+    {
+       return true;
+    }
+    else if constexpr(Octant == ESE || Octant == SSE)   //southeast
+    {
+       return false;
+    }
+    else if constexpr(Octant == WSW || Octant == SSW)   //southwest
+    {
+       return (scan_dir == NORTH || scan_dir == SOUTH);
+    }
 }
 
 

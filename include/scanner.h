@@ -81,24 +81,21 @@ uint32_t Scanner::scan_hori(gridmap::bittable _map, pad_id start, scanResult &re
     //get the comparing word based on if the obsticle is on top or bottom 
     uint64_t comp = res.top ? neis[1] : neis[2];
     uint64_t mid = ~neis[0];
-    
+    maskzero<East>(mid, slider.width8_bits);
+    maskzero<East>(comp, slider.width8_bits);
     if constexpr(East)
     {
-        maskzero<East>(mid, slider.width8_bits);
-        maskzero<East>(comp, slider.width8_bits);
-        // std::cout<<"mid:    ";
-        // printEastScan(mid);
-        // std::cout<<"comp:   ";
-        // printEastScan(comp);
+        std::cout<<"mid:    ";
+        printEastScan(mid);
+        std::cout<<"comp:   ";
+        printEastScan(comp);
     }
     else
     {
-        maskzero<East>(mid, slider.width8_bits);
-        maskzero<East>(comp, slider.width8_bits);
-        // std::cout<<"mid:    ";
-        // printWestScan(mid);
-        // std::cout<<"comp:   ";
-        // printWestScan(comp);
+        std::cout<<"mid:    ";
+        printWestScan(mid);
+        std::cout<<"comp:   ";
+        printWestScan(comp);
     }
     if(comp || mid)
     {
@@ -107,13 +104,41 @@ uint32_t Scanner::scan_hori(gridmap::bittable _map, pad_id start, scanResult &re
         steps += std::min(res.m, res.c);
         return steps - slider.width8_bits -1;
     }
+    steps += 63 - slider.width8_bits - 1;
     slider.adj_bytes( East? 7:-7);
-    steps += 63-slider.width8_bits-1;
+    slider.width8_bits = 7;
     while (true)
     {
-    assert(false && "not implemented");
-    }    
-    return 0;
+        neis = slider.get_neighbours_64bit_le();
+        //get the comparing word based on if the obsticle is on top or bottom 
+        comp = res.top ? neis[1] : neis[2];
+        mid = ~neis[0];
+        maskzero<East>(mid, slider.width8_bits);
+        maskzero<East>(comp, slider.width8_bits);
+        if constexpr(East)
+        {
+            std::cout<<"mid:    ";
+            printEastScan(mid);
+            std::cout<<"comp:   ";
+            printEastScan(comp);
+        }
+        else
+        {
+            std::cout<<"mid:    ";
+            printWestScan(mid);
+            std::cout<<"comp:   ";
+            printWestScan(comp);
+        }
+        if(comp || mid)
+        {
+            res.m = East? std::countr_zero(mid) : std::countl_zero(mid);
+            res.c = East? std::countr_zero(comp) : std::countl_zero(comp);
+            steps += std::min(res.m, res.c);
+            return steps - slider.width8_bits;
+        }
+        slider.adj_bytes(East? 7 : -7);
+        steps += 63 - slider.width8_bits - 1;
+    }
 }
 
 template<ScanAttribute::Orientation o>

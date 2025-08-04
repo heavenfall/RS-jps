@@ -175,20 +175,25 @@ void Solver<ST>::expand(rjps_node cur, std::vector<rjps_node> &heap)
         ccw_start = shift_in_dir(ccw_start, 1, s_dir.ccw_init, m_map);
     }
     auto dir_info = DirectionInfo{};
+    uint32_t cwbound = 0, ccwbound = 0;
+    cwbound = horizontally_bound(roct) ? cur_coord.first: cur_coord.second;
+    ccwbound = horizontally_bound(loct) ? cur_coord.first: cur_coord.second;
     //scan both ways from the point the ray intercepted
     //CW scan
     dir_info.init = s_dir.cw_init;
-    dir_info.jps = s_dir.cw_jps;
-    dir_info.subseq = s_dir.cw_subseq;
-    dir_info.terminate = rotate_eighth<Orientation::CCW>(cur.dir);
-    uint32_t cwbound = scan_in_bound<Orientation::CW>(cw_start, cur, heap, cur_coord.first, cur_coord.second, dir_info);
+    cwbound = scan_in_bound<CW, roct>(cw_start, cur, heap, cwbound, s_dir.cw_init);
+    // dir_info.jps = s_dir.cw_jps;
+    // dir_info.subseq = s_dir.cw_subseq;
+    // dir_info.terminate = rotate_eighth<Orientation::CCW>(cur.dir);
+    // uint32_t cwbound = scan_in_bound<Orientation::CW>(cw_start, cur, heap, cur_coord.first, cur_coord.second, dir_info);
 
     //CCW scan
     dir_info.init = s_dir.ccw_init;
-    dir_info.jps = s_dir.ccw_jps;
-    dir_info.subseq = s_dir.ccw_subseq;
-    dir_info.terminate = rotate_eighth<Orientation::CW>(cur.dir);
-    uint32_t ccwbound = scan_in_bound<Orientation::CCW>(ccw_start, cur, heap, cur_coord.first, cur_coord.second, dir_info);
+    ccwbound = scan_in_bound<CCW, loct>(ccw_start, cur, heap, ccwbound, s_dir.ccw_init);
+    // dir_info.jps = s_dir.ccw_jps;
+    // dir_info.subseq = s_dir.ccw_subseq;
+    // dir_info.terminate = rotate_eighth<Orientation::CW>(cur.dir);
+    // uint32_t ccwbound = scan_in_bound<Orientation::CCW>(ccw_start, cur, heap, cur_coord.first, cur_coord.second, dir_info);
 
     if(target_blocked)[[unlikely]]
     {
@@ -212,43 +217,14 @@ void Solver<ST>::expand(rjps_node cur, std::vector<rjps_node> &heap)
     }
 
     //CW scan from left extremety(left of scan center)
-    auto xbound = uint32_t{}, ybound = xbound;
-    if(cur.dir == NORTHEAST || cur.dir == SOUTHWEST)
-    {
-        xbound = ccwbound;
-        ybound = cur_coord.second;
-    }
-    else    
-    {
-        xbound = cur_coord.first;
-        ybound = ccwbound;
-    }
     dir_info.init = s_dir.cw_jps;
-    dir_info.jps =  rotate_eighth<Orientation::CCW>(cur.dir);
-    dir_info.subseq = s_dir.cw_jps;
-    dir_info.terminate = dir_ccw(dir_info.jps);
     temp = m_ray.shoot_rjps_ray<ST>(cur.id, s_dir.ccw_jps, heap, cur);
-    //IF FIRST CCW SCAN FAILS, CCWBOUND WILL STAY THE SAME AS ORIGINAL BOUND THEREFORE SHORTCIRCUIT
-    scan_in_bound_alt<Orientation::CW>(temp, cur, heap, xbound, ybound, dir_info);
+    scan_in_bound<CW, loct>(temp, cur, heap, ccwbound, s_dir.cw_jps);
     
     //CCW scan from right extremety(right of scan center)
-    if(cur.dir == NORTHWEST || cur.dir == SOUTHEAST)
-    {
-        xbound = cwbound;
-        ybound = cur_coord.second;
-    }
-    else    
-    {
-        xbound = cur_coord.first;
-        ybound = cwbound;
-    }
-    //CCW scan from right extremety
     dir_info.init = s_dir.ccw_jps;
-    dir_info.jps =  rotate_eighth<Orientation::CW>(cur.dir);
-    dir_info.subseq = s_dir.ccw_jps;
-    dir_info.terminate = dir_cw(dir_info.jps);
     temp = m_ray.shoot_rjps_ray<ST>(cur.id, s_dir.cw_jps, heap, cur);
-    scan_in_bound_alt<Orientation::CCW>(temp, cur, heap, xbound, ybound, dir_info);
+    scan_in_bound<CCW, roct>(temp, cur, heap, cwbound, s_dir.ccw_jps);
 }
 
 template <SolverTraits ST>
@@ -822,7 +798,7 @@ uint32_t Solver<ST>::scan_in_bound(pad_id start, rjps_node parent, std::vector<r
     auto poi = pad_id{}, succ = poi;
     scan_res.d = start_d;
     uint32_t dir_ind = std::countr_zero<uint8_t>(parent.dir)-4;
-    scan_res.top = get_top<Octant>();
+    scan_res.top = get_init_scan_top<Octant>(scan_res.d);
     if constexpr(horizontally_bound(Octant))    //x is the primary boundary
     {
         poi = m_scanner.find_turning_point<ST>(start, scan_res, dir_info.terminate, boundary, UINT32_MAX);
