@@ -59,6 +59,7 @@ static const double EPSILON = 0.000001f;
 //     }
 // }
 
+template <bool Test>
 void run_scenario(warthog::util::scenario_manager &scen_mngr, string mapname)
 {
     auto mapfile = string{"../maps/" + mapname};
@@ -74,22 +75,21 @@ void run_scenario(warthog::util::scenario_manager &scen_mngr, string mapname)
         pad_id target = map.to_padded_id_from_unpadded(uint32_t(cur_exp->goalx()), uint32_t(cur_exp->goaly()));
         s.query(start, target);
         auto res = s.get_result();
-        if (std::fabs(res.plenth - cur_exp->distance()) <= EPSILON)
+        if constexpr(Test)
         {
-            std::cout << "\033[1;32m";  //green 
-        }
-        else
-        {
-            std::cout << "\033[1;31m";  //red
+            if (std::fabs(res.plenth - cur_exp->distance()) <= EPSILON) std::cout << "\033[1;32m";  //green 
+            else                                                        std::cout << "\033[1;31m";  //red
         }
         std::cout << i;
-        std::cout << ":\t" << std::fixed << std::setprecision(10) << cur_exp->distance();
+        std::cout << "\t" << std::fixed << std::setprecision(10) << cur_exp->distance();
         std::cout << "\t"  << std::fixed << std::setprecision(10) << res.plenth;
         std::cout << "\t"  << res.expanded;
         std::cout << "\t"  << res.generated;
         std::cout << "\t"  << res.heap_pops;
         std::cout << "\t"  << to_string(res.nanos.count());
-        std::cout << "\033[0m\n";
+        if constexpr(Test) std::cout << "\033[0m";
+
+        std::cout << '\n';
     }
 }
 
@@ -119,7 +119,7 @@ void test3(warthog::util::scenario_manager &scen_mngr, string mapname, size_t i)
 
 static const string MAPNAME = "scene_sp_cha_01";
 constexpr bool test = false;
-static const int TESTCASE = 20;
+static const int TESTCASE = 200;
 int main(int argc, char** argv)
 {
     // parse arguments
@@ -142,6 +142,7 @@ int main(int argc, char** argv)
             {"checkopt", no_argument, 0, 1},
             {"verbose", no_argument, 0, 1},
             {"costs", required_argument, 0, 1},
+            {"test", required_argument, 0, 0},
             {0, 0, 0, 0}};
 
         warthog::util::cfg cfg;
@@ -150,7 +151,13 @@ int main(int argc, char** argv)
         std::string sfile = {"../maps/" + cfg.get_param_value("scen")};
         std::string alg   = cfg.get_param_value("alg");
         std::string mapfile  = cfg.get_param_value("map");
+        std::string test  = cfg.get_param_value("test");
 
+        if(test == "")
+        {
+            std::puts("please specify test, y == output to console n == pipe to tsv");
+            return 1;
+        }
         if(alg == "" || sfile == "" || mapfile == "")
         {
             std::puts("alg or scen or map file empty");
@@ -164,7 +171,8 @@ int main(int argc, char** argv)
 
         auto scen_mngr = warthog::util::scenario_manager{};
         scen_mngr.load_scenario(sfile.c_str());
-        run_scenario(scen_mngr, mapfile);
+        if(test == "y")run_scenario<true>(scen_mngr, mapfile);
+        else           run_scenario<false>(scen_mngr, mapfile);
     }
     return 0;
 }
