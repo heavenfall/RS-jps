@@ -4,6 +4,8 @@ project(RayScan-JPS
 	VERSION 0.0.1
 	LANGUAGES CXX C)
 
+find_package(Boost REQUIRED)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
@@ -21,5 +23,6 @@ add_executable(RayScan-jps main.cpp)
 add_subdirectory(src)
 
 target_link_libraries(RayScan-jps PUBLIC mylib)
+target_link_libraries(RayScan-jps PUBLIC Boost::headers)
 target_link_libraries(mylib PUBLIC warthog::libjps)
 # add_subdirectory(include)
