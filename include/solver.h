@@ -8,7 +8,7 @@
 #include <queue>
 #include <unordered_map>
 
-//0x1.6a09e6p0
+//0x1.6a09e6p0 - root2
 
 struct scan_dir
 {
@@ -94,6 +94,10 @@ private:
     bool target_in_scan_quad(pad_id start, pad_id target);
     // void scan_target_blocker(rjps_node cur, std::vector<rjps_node> &vec, Octants O);
     void init_rjps_nodes(vector<rjps_node> &heap, rjps_node parent, size_t prev_end);
+
+    double interval_h(rjps_node cur);
+
+    pad_id shoot_interval_ray(pad_id start, direction dir);
 };
 
 template <SolverTraits ST>
@@ -406,7 +410,6 @@ bool Solver<ST>::init_scan_dir(pad_id start, direction p_dir, scan_dir &dir)
     dir.ccw_jps = d_jps[dir_ind][1];
     return ret;
 }
-
 
 template <SolverTraits ST>
 pad_id Solver<ST>::grid_ray_incident(pad_id from, pad_id to, direction d)
@@ -869,3 +872,45 @@ uint32_t Solver<ST>::scan_in_bound(pad_id start, rjps_node parent, std::vector<r
     }
     return scan_frontier;
 }
+
+template <SolverTraits ST>
+inline double Solver<ST>::interval_h(rjps_node cur)
+{
+    double hx = 0, hy = 0;
+    auto hori_dir = direction{}, vert_dir = direction{};
+    auto x_intv = pad_id{}, y_intv = x_intv;
+    vert_dir = (cur.dir == NORTHEAST || cur.dir == NORTHWEST) ? NORTH : SOUTH;
+    hori_dir = (cur.dir == NORTHEAST || cur.dir == SOUTHEAST) ? EAST : WEST;
+    if (vert_dir == NORTH)
+    {
+        auto dy = m_ray.shoot_ray_north<Travasable>(cur.id);
+        y_intv = shift_in_dir(cur.id, dy+1, NORTH, m_map);
+        dy = m_ray.shoot_ray_north<Obstacle>(cur.id);
+        y_intv = shift_in_dir(cur.id, dy+1, NORTH, m_map);
+    }
+    else    
+    {
+        auto dy = m_ray.shoot_ray_south<Travasable>(cur.id);
+        y_intv = shift_in_dir(cur.id, dy+1, SOUTH, m_map);
+        dy = m_ray.shoot_ray_south<Obstacle>(cur.id);
+        y_intv = shift_in_dir(cur.id, dy+1, SOUTH, m_map);
+    }
+    if (hori_dir == EAST)
+    {
+        auto dx = m_ray.shoot_ray_east<Travasable>(cur.id);
+        x_intv = shift_in_dir(cur.id, dx+1, EAST, m_map);
+        dx = m_ray.shoot_ray_east<Obstacle>(cur.id);
+        x_intv = shift_in_dir(cur.id, dx+1, EAST, m_map);
+    }
+    else    
+    {
+        auto dx = m_ray.shoot_ray_west<Travasable>(cur.id);
+        x_intv = shift_in_dir(cur.id, dx+1, WEST, m_map);
+        dx = m_ray.shoot_ray_west<Obstacle>(cur.id);
+        x_intv = shift_in_dir(cur.id, dx+1, WEST, m_map);
+    }
+    hx = m_heuristic.h((sn_id_t)x_intv, (sn_id_t)m_target);
+    hy = m_heuristic.h((sn_id_t)y_intv, (sn_id_t)m_target);
+    return std::min(hx, hy);
+}
+

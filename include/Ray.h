@@ -14,17 +14,21 @@ private:
     gridmap::bittable m_map;
 	gridmap::bittable m_rmap;
     
-    inline uint32_t shoot_ray_north(pad_id start){return shoot_hori_ray<true>(pad_id{m_jps->id_to_rid(jps_id{start}).id}, m_rmap);};
-    inline uint32_t shoot_ray_south(pad_id start){return shoot_hori_ray<false>(pad_id{m_jps->id_to_rid(jps_id{start}).id}, m_rmap);};
-    inline uint32_t shoot_ray_east(pad_id start){return shoot_hori_ray<true>(start, m_map);};
-    inline uint32_t shoot_ray_west(pad_id start){return shoot_hori_ray<false>(start, m_map);};
+    template <Domain D>
+    inline uint32_t shoot_ray_north(pad_id start){return shoot_hori_ray<true, D>(pad_id{m_jps->id_to_rid(jps_id{start}).id}, m_rmap);};
+    template <Domain D>
+    inline uint32_t shoot_ray_south(pad_id start){return shoot_hori_ray<false, D>(pad_id{m_jps->id_to_rid(jps_id{start}).id}, m_rmap);};
+    template <Domain D>
+    inline uint32_t shoot_ray_east(pad_id start){return shoot_hori_ray<true, D>(start, m_map);};
+    template <Domain D>
+    inline uint32_t shoot_ray_west(pad_id start){return shoot_hori_ray<false, D>(start, m_map);};
 
 public:
     Ray(std::shared_ptr<Tracer> tracer, jump::jump_point_online<>* _jps)
         : m_tracer(tracer), m_jps(_jps), m_map(m_jps->get_map()), m_rmap(m_jps->get_rmap()) {};
     ~Ray() = default;
 
-    template<bool East>
+    template<bool East, Domain D>
     uint32_t shoot_hori_ray(pad_id start, domain::gridmap::bittable map);
 
     //shoot a diag-first grid ray towards the target, returns the target pad_id if visible, otherwise the first intersection
@@ -50,7 +54,7 @@ public:
 
 //simple ray that steps continuouisly until an obstacle is hit
 
-template<bool East>
+template<bool East, Domain D>
 uint32_t Ray::shoot_hori_ray(pad_id start, domain::gridmap::bittable map)
 {
     uint32_t steps = 0;
@@ -62,21 +66,21 @@ uint32_t Ray::shoot_hori_ray(pad_id start, domain::gridmap::bittable map)
     }
     uint64_t mid = ~slider.get_neighbours_64bit_le()[0];
     maskzero<East>(mid, slider.width8_bits);
+    //if the ray is in obstacle domain, flip the bits again so obstacle = 0 and travasable = 1
+    if constexpr(D==Obstacle) mid = ~mid;
     if(mid)
     {
         steps = East? std::countr_zero(mid) : std::countl_zero(mid);
         return steps - slider.width8_bits - 1;
     }
-    //TODO fix logic here
     steps += 63 - slider.width8_bits -1;
     slider.adj_bytes(East? 7 : -7);
     slider.width8_bits = 7;
     while (true)
     {
-        // assert(false && "not implemented");
         uint64_t mid = ~slider.get_neighbours_64bit_le()[0];
         maskzero<East>(mid, slider.width8_bits);
-
+        if constexpr(D==Obstacle) mid = ~mid;
         if(mid)
         {
             steps += East? std::countr_zero(mid) : std::countl_zero(mid);
@@ -109,25 +113,25 @@ std::pair<bool, pad_id> Ray::check_target_visible(pad_id start, pad_id target, d
     auto ret = pad_id{};
     if constexpr(octant == NNW || octant == NNE)
     {
-        steps = shoot_ray_north(tp);
+        steps = shoot_ray_north<Travasable>(tp);
         if(cury - steps <= ty) ret = target;
         else ret = shift_in_dir(tp, steps, NORTH, m_map);
     }
     else if constexpr(octant == ENE || octant == ESE)
     {
-        steps = shoot_ray_east(tp);
+        steps = shoot_ray_east<Travasable>(tp);
         if(curx + steps >= tx) ret = target;
         else ret = shift_in_dir(tp, steps, EAST, m_map);
     }
     else if constexpr(octant == SSE || octant == SSW)
     {
-        steps = shoot_ray_south(tp);
+        steps = shoot_ray_south<Travasable>(tp);
         if(cury + steps >= ty) ret = target;
         else ret = shift_in_dir(tp, steps, SOUTH, m_map);
     }
     else if constexpr(octant == WSW || octant == WNW)
     {
-        steps = shoot_ray_west(tp);
+        steps = shoot_ray_west<Travasable>(tp);
         if(curx - steps <= tx) ret = target;
         else ret = shift_in_dir(tp, steps, WEST, m_map);
     }

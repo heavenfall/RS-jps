@@ -9,6 +9,12 @@
 using namespace warthog::domain;
 using namespace jps;
 
+enum Domain
+{
+    Travasable,
+    Obstacle
+};
+
 enum class SolverTraits
 {
     Default,
