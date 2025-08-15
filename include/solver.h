@@ -132,8 +132,6 @@ void Solver<ST>::expand(rjps_node cur, std::vector<rjps_node> &heap)
     auto cur_coord = m_map.id_to_xy(cur.id);
     auto target_coord = m_map.id_to_xy(m_target);
 
-    std::cout << interval_h(cur) << '\n';
-
     //coord postion of ray intersec from shooting to target, potentially unused
     auto temp = pad_id{}, target_scan_start = temp;
     auto s_dir = scan_dir{};
@@ -248,21 +246,24 @@ void Solver<ST>::query(pad_id start, pad_id target)
     heap.reserve(2048);
     
     m_timer.start();
-    interval_h(rjps_node(m_map.xy_to_id(125, 10), nullptr, std::pair(1, 3), NORTHWEST));
     auto start_node = rjps_node{start, nullptr, m_map.id_to_xy(start), NONE};
     start_node.gval = 0;
     start_node.hval = m_heuristic.h(start_coord.first, start_coord.second, target_coord.first, target_coord.second);
     {
     start_node.dir = NORTHEAST;
+    // start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
 
     start_node.dir = NORTHWEST;
+    // start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
 
     start_node.dir = SOUTHEAST;
+    // start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
 
     start_node.dir = SOUTHWEST;
+    // start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
     // start_node.quad_mask = (direction)UINT8_MAX;    // == 11111111
     m_node_map.try_emplace((uint64_t)start_node.id, start_node);
@@ -462,24 +463,29 @@ void Solver<ST>::init_rjps_nodes(vector<rjps_node> &heap, rjps_node parent, size
             const auto &q = quad.find(to_string(parent.dir) + to_string(node.dir) + to_string(true));
             assert(q != quad.end());
             node.dir = q->second;
+            // node.hval = interval_h(node);            
             heap.push_back(node);
 
+            auto node_cpy = node;
             const auto &q2 = quad.find(to_string(parent.dir) + to_string(tmp_dir) + to_string(false));
             assert(q2 != quad.end());
-            node.dir = q2->second;
-            heap.push_back(node);
+            node_cpy.dir = q2->second;
+            // node_cpy.hval = interval_h(node_cpy);
+            heap.push_back(node_cpy);
         }
         else if(top)
         {
             const auto &q = quad.find(to_string(parent.dir) + to_string(node.dir) + to_string(true));
             assert(q != quad.end());
             node.dir = q->second;
+            // node.hval = interval_h(node);            
         }
         else
         {
             const auto &q = quad.find(to_string(parent.dir) + to_string(node.dir) + to_string(false));
             assert(q != quad.end());
             node.dir = q->second;
+            // node.hval = interval_h(node);            
         }
     }
     for(auto iter = prev_end; iter < heap.size();)
@@ -875,43 +881,86 @@ uint32_t Solver<ST>::scan_in_bound(pad_id start, rjps_node parent, std::vector<r
 template <SolverTraits ST>
 inline double Solver<ST>::interval_h(rjps_node cur)
 {
-    double hx = 0, hy = 0;
+    double hx = 0, hy = 0, curh = m_heuristic.h(cur.id.id, m_target.id);
     auto hori_dir = direction{}, vert_dir = direction{};
     auto x_intv = pad_id{}, y_intv = x_intv;
+    auto cur_coord = m_map.id_to_xy(cur.id);
+    uint32_t tempx{}, tempy{};
     vert_dir = (cur.dir == NORTHEAST || cur.dir == NORTHWEST) ? NORTH : SOUTH;
     hori_dir = (cur.dir == NORTHEAST || cur.dir == SOUTHEAST) ? EAST : WEST;
     if (vert_dir == NORTH)
     {
-        auto dy = m_ray.shoot_ray_north<Travasable>(cur.id);
-        y_intv = shift_in_dir(cur.id, dy+1, NORTH, m_map);
-        dy = m_ray.shoot_ray_north<Obstacle>(y_intv);
-        y_intv = shift_in_dir(y_intv, dy+1, NORTH, m_map);
+        auto dy = m_ray.shoot_ray_north<Travasable>(cur.id)+1;    
+        tempy += dy;
+        y_intv = shift_in_dir(cur.id, dy, NORTH, m_map);
+        dy = m_ray.shoot_ray_north<Obstacle>(y_intv)+1;
+        tempy += dy;
+        y_intv = shift_in_dir(y_intv, dy, NORTH, m_map);
+        if(tempy > cur_coord.second)//reached map boundary
+        {
+            hy = curh;
+        }
+        else
+        {
+            hy = m_heuristic.h(y_intv.id, m_target.id);
+        }
     }
     else    
     {
-        auto dy = m_ray.shoot_ray_south<Travasable>(cur.id);
-        y_intv = shift_in_dir(cur.id, dy+1, SOUTH, m_map);
-        dy = m_ray.shoot_ray_south<Obstacle>(y_intv);
-        y_intv = shift_in_dir(y_intv, dy+1, SOUTH, m_map);
+        auto dy = m_ray.shoot_ray_south<Travasable>(cur.id)+1;
+        tempy += dy;
+        y_intv = shift_in_dir(cur.id, dy, SOUTH, m_map);
+        dy = m_ray.shoot_ray_south<Obstacle>(y_intv)+1;
+        tempy += dy;
+        y_intv = shift_in_dir(y_intv, dy, SOUTH, m_map);
+        if(tempy + cur_coord.second > m_map.height())//reached map boundary
+        {
+            hy = curh;
+        }
+        else
+        {
+            hy = m_heuristic.h(y_intv.id, m_target.id);
+        }
     }
     if (hori_dir == EAST)
     {
-        auto dx = m_ray.shoot_ray_east<Travasable>(cur.id);
-        x_intv = shift_in_dir(cur.id, dx+1, EAST, m_map);
-        dx = m_ray.shoot_ray_east<Obstacle>(x_intv);
-        x_intv = shift_in_dir(x_intv, dx+1, EAST, m_map);
+        auto dx = m_ray.shoot_ray_east<Travasable>(cur.id)+1;
+        tempx += dx;
+        x_intv = shift_in_dir(cur.id, dx, EAST, m_map);
+        dx = m_ray.shoot_ray_east<Obstacle>(x_intv)+1;
+        tempx += dx;
+        x_intv = shift_in_dir(x_intv, dx, EAST, m_map);
+        if(tempx + cur_coord.first > m_map.width())//reached map boundary
+        {
+            hx = curh;
+        }
+        else
+        {
+            hx = m_heuristic.h(x_intv.id, m_target.id);
+        }
     }
     else    
     {
-        auto dx = m_ray.shoot_ray_west<Travasable>(cur.id);
-        x_intv = shift_in_dir(cur.id, dx+1, WEST, m_map);
-        dx = m_ray.shoot_ray_west<Obstacle>(x_intv);
-        x_intv = shift_in_dir(x_intv, dx+1, WEST, m_map);
+        auto dx = m_ray.shoot_ray_west<Travasable>(cur.id)+1;
+        tempx += dx;
+        x_intv = shift_in_dir(cur.id, dx, WEST, m_map);
+        dx = m_ray.shoot_ray_west<Obstacle>(x_intv)+1;
+        tempx += dx;
+        x_intv = shift_in_dir(x_intv, dx, WEST, m_map);
+        if(tempx > cur_coord.first)//reached map boundary
+        {
+            hx = curh;
+        }
+        else
+        {
+            hx = m_heuristic.h(x_intv.id, m_target.id);
+        }
     }
-    hx = m_heuristic.h(x_intv.id, m_target.id);
-    hy = m_heuristic.h(y_intv.id, m_target.id);
-    if(cur.id.id % m_map.width() != y_intv.id % m_map.width()) hy = DBL_MAX;
-    if(cur.id.id / m_map.width() != x_intv.id / m_map.width()) hx = DBL_MAX;
+
+    // hx = m_heuristic.h(x_intv.id, m_target.id);
+    // hy = m_heuristic.h(y_intv.id, m_target.id);
+    // if(cur.id.id % m_map.width() != y_intv.id % m_map.width()) hy = DBL_MAX;
+    // if(cur.id.id / m_map.width() != x_intv.id / m_map.width()) hx = DBL_MAX;
     m_tracer->expand(m_map.id_to_xy(x_intv), "orange", "intx, h: " + to_string(hx));
     m_tracer->expand(m_map.id_to_xy(y_intv), "orange", "inty, h: " + to_string(hy));
     return std::min(hx, hy);

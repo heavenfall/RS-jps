@@ -68,18 +68,7 @@ uint32_t Ray::shoot_hori_ray(pad_id start, domain::gridmap::bittable map)
     }
     uint64_t mid = (D==Travasable)? ~slider.get_neighbours_64bit_le()[0]
                                     :slider.get_neighbours_64bit_le()[0];
-    if constexpr(East)
-    {
-        printEastScan(mid);
-    } 
-    else printWestScan(mid);
     maskzero<East>(mid, slider.width8_bits);
-
-    if constexpr(East)
-    {
-        printEastScan(mid);
-    } 
-    else printWestScan(mid);
     //if the ray is in obstacle domain, flip the bits again so obstacle = 0 and travasable = 1
 
     if(mid)
@@ -95,11 +84,6 @@ uint32_t Ray::shoot_hori_ray(pad_id start, domain::gridmap::bittable map)
         mid = (D==Travasable)?  ~slider.get_neighbours_64bit_le()[0]
                                 :slider.get_neighbours_64bit_le()[0];
         maskzero<East>(mid, slider.width8_bits);
-        if constexpr(East)
-        {
-            printEastScan(mid);
-        } 
-        else printWestScan(mid);
         if(mid)
         {
             steps += East? std::countr_zero(mid) : std::countl_zero(mid);
