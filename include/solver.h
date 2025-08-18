@@ -84,15 +84,16 @@ private:
     std::shared_ptr<Tracer>             m_tracer;
     warthog::domain::gridmap::bittable  m_map;
     warthog::domain::gridmap::bittable  m_rmap;
+    heuristic::octile_heuristic         m_heuristic;
     Ray                                 m_ray;
     Scanner                             m_scanner;
     pad_id                              m_target;
-    heuristic::octile_heuristic         m_heuristic;
+    std::pair<uint32_t, uint32_t>       m_tcoord;
     std::unordered_map<uint64_t, rjps_node> m_node_map;
     experiment_result                   m_stats;
     warthog::util::timer                m_timer;
-    template <direction D>
-    bool target_in_scan_quad(pad_id start, pad_id target);
+
+    bool target_in_scan_quad(pad_id start, direction quad);
     // void scan_target_blocker(rjps_node cur, std::vector<rjps_node> &vec, Octants O);
     void init_rjps_nodes(vector<rjps_node> &heap, rjps_node parent, size_t prev_end);
 
@@ -137,9 +138,9 @@ void Solver<ST>::expand(rjps_node cur, std::vector<rjps_node> &heap)
     auto s_dir = scan_dir{};
     bool target_blocked = false;
     //left octant and right octant
-    constexpr Octants loct = left_octant<D>(), roct = right_octant<D>();
+    constexpr Octants loct = get_left_octant<D>(), roct = get_right_octant<D>();
     //if target is in same quadrant, shoot to it
-    if(target_in_scan_quad<D>(cur.id, m_target))
+    if(target_in_scan_quad(cur.id, cur.dir))
     {
         std::pair<bool, pad_id> vis_res;
         if(on_left_octant<D>(cur_coord, target_coord))
@@ -248,22 +249,22 @@ void Solver<ST>::query(pad_id start, pad_id target)
     m_timer.start();
     auto start_node = rjps_node{start, nullptr, m_map.id_to_xy(start), NONE};
     start_node.gval = 0;
-    start_node.hval = m_heuristic.h(start_coord.first, start_coord.second, target_coord.first, target_coord.second);
+    // start_node.hval = m_heuristic.h(start_coord.first, start_coord.second, target_coord.first, target_coord.second);
     {
     start_node.dir = NORTHEAST;
-    // start_node.hval = interval_h(start_node);
+    start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
 
     start_node.dir = NORTHWEST;
-    // start_node.hval = interval_h(start_node);
+    start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
 
     start_node.dir = SOUTHEAST;
-    // start_node.hval = interval_h(start_node);
+    start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
 
     start_node.dir = SOUTHWEST;
-    // start_node.hval = interval_h(start_node);
+    start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
     // start_node.quad_mask = (direction)UINT8_MAX;    // == 11111111
     m_node_map.try_emplace((uint64_t)start_node.id, start_node);
@@ -346,26 +347,43 @@ void Solver<ST>::query(pad_id start, pad_id target)
 }
 
 template <SolverTraits ST>
-template <direction D>
-inline bool Solver<ST>::target_in_scan_quad(pad_id start, pad_id target)
-{
-    auto s = m_map.id_to_xy(start), t = m_map.id_to_xy(target);
-    if      constexpr(D == NORTHEAST)
+inline bool Solver<ST>::target_in_scan_quad(pad_id start, direction quad)
+{    
+    auto s = m_map.id_to_xy(start);
+    switch (quad)
     {
-        return(t.first >= s.first && t.second <= s.second);
+    case NORTHEAST:
+        return(m_tcoord.first >= s.first && m_tcoord.second <= s.second);
+        break;
+    case NORTHWEST:
+        return(m_tcoord.first <= s.first && m_tcoord.second <= s.second);
+        break;
+    case SOUTHEAST:
+        return(m_tcoord.first >= s.first && m_tcoord.second >= s.second);
+        break;
+    case SOUTHWEST:
+        return(m_tcoord.first <= s.first && m_tcoord.second >= s.second);
+        break;
+    default:
+        assert(false);
+        break;
     }
-    else if constexpr(D == NORTHWEST)
-    {
-        return(t.first <= s.first && t.second <= s.second);
-    }    
-    else if constexpr(D == SOUTHEAST)
-    {
-        return(t.first >= s.first && t.second >= s.second);
-    }
-    else if constexpr(D == SOUTHWEST)
-    {
-        return(t.first <= s.first && t.second >= s.second);
-    }
+    // if      constexpr(D == NORTHEAST)
+    // {
+    //     return(m_tcoord.first >= s.first && m_tcoord.second <= s.second);
+    // }
+    // else if constexpr(D == NORTHWEST)
+    // {
+    //     return(m_tcoord.first <= s.first && m_tcoord.second <= s.second);
+    // }    
+    // else if constexpr(D == SOUTHEAST)
+    // {
+    //     return(m_tcoord.first >= s.first && m_tcoord.second >= s.second);
+    // }
+    // else if constexpr(D == SOUTHWEST)
+    // {
+    //     return(m_tcoord.first <= s.first && m_tcoord.second >= s.second);
+    // }
 }
 
 template <SolverTraits ST>
@@ -434,7 +452,7 @@ void Solver<ST>::init_rjps_nodes(vector<rjps_node> &heap, rjps_node parent, size
         auto &node = heap[i];
         //gval should be the shortest path from parent, since path is taut
         node.gval = m_heuristic.h(node.id.id, parent.id.id) + parent_node->second.gval;
-        node.hval = m_heuristic.h(node.id.id, m_target.id);
+        // node.hval = m_heuristic.h(node.id.id, m_target.id);
         switch (node.dir)
         {
         case NORTH:
@@ -463,14 +481,14 @@ void Solver<ST>::init_rjps_nodes(vector<rjps_node> &heap, rjps_node parent, size
             const auto &q = quad.find(to_string(parent.dir) + to_string(node.dir) + to_string(true));
             assert(q != quad.end());
             node.dir = q->second;
-            // node.hval = interval_h(node);            
+            node.hval = interval_h(node);            
             heap.push_back(node);
 
             auto node_cpy = node;
             const auto &q2 = quad.find(to_string(parent.dir) + to_string(tmp_dir) + to_string(false));
             assert(q2 != quad.end());
             node_cpy.dir = q2->second;
-            // node_cpy.hval = interval_h(node_cpy);
+            node_cpy.hval = interval_h(node_cpy);
             heap.push_back(node_cpy);
         }
         else if(top)
@@ -478,14 +496,14 @@ void Solver<ST>::init_rjps_nodes(vector<rjps_node> &heap, rjps_node parent, size
             const auto &q = quad.find(to_string(parent.dir) + to_string(node.dir) + to_string(true));
             assert(q != quad.end());
             node.dir = q->second;
-            // node.hval = interval_h(node);            
+            node.hval = interval_h(node);            
         }
         else
         {
             const auto &q = quad.find(to_string(parent.dir) + to_string(node.dir) + to_string(false));
             assert(q != quad.end());
             node.dir = q->second;
-            // node.hval = interval_h(node);            
+            node.hval = interval_h(node);            
         }
     }
     for(auto iter = prev_end; iter < heap.size();)
@@ -881,84 +899,30 @@ uint32_t Solver<ST>::scan_in_bound(pad_id start, rjps_node parent, std::vector<r
 template <SolverTraits ST>
 inline double Solver<ST>::interval_h(rjps_node cur)
 {
+    //if the target resides inside scanning sector, return regular octile heuristic
+    if (target_in_scan_quad(cur.id, cur.dir))
+    {
+        return m_heuristic.h(cur.id.id, m_target.id);
+    }
+    
     double hx = 0, hy = 0, curh = m_heuristic.h(cur.id.id, m_target.id);
     auto hori_dir = direction{}, vert_dir = direction{};
     auto x_intv = pad_id{}, y_intv = x_intv;
-    auto cur_coord = m_map.id_to_xy(cur.id);
-    uint32_t tempx{}, tempy{};
     vert_dir = (cur.dir == NORTHEAST || cur.dir == NORTHWEST) ? NORTH : SOUTH;
     hori_dir = (cur.dir == NORTHEAST || cur.dir == SOUTHEAST) ? EAST : WEST;
-    if (vert_dir == NORTH)
-    {
-        auto dy = m_ray.shoot_ray_north<Travasable>(cur.id)+1;    
-        tempy += dy;
-        y_intv = shift_in_dir(cur.id, dy, NORTH, m_map);
-        dy = m_ray.shoot_ray_north<Obstacle>(y_intv)+1;
-        tempy += dy;
-        y_intv = shift_in_dir(y_intv, dy, NORTH, m_map);
-        if(tempy > cur_coord.second)//reached map boundary
-        {
-            hy = curh;
-        }
-        else
-        {
-            hy = m_heuristic.h(y_intv.id, m_target.id);
-        }
-    }
-    else    
-    {
-        auto dy = m_ray.shoot_ray_south<Travasable>(cur.id)+1;
-        tempy += dy;
-        y_intv = shift_in_dir(cur.id, dy, SOUTH, m_map);
-        dy = m_ray.shoot_ray_south<Obstacle>(y_intv)+1;
-        tempy += dy;
-        y_intv = shift_in_dir(y_intv, dy, SOUTH, m_map);
-        if(tempy + cur_coord.second > m_map.height())//reached map boundary
-        {
-            hy = curh;
-        }
-        else
-        {
-            hy = m_heuristic.h(y_intv.id, m_target.id);
-        }
-    }
-    if (hori_dir == EAST)
-    {
-        auto dx = m_ray.shoot_ray_east<Travasable>(cur.id)+1;
-        tempx += dx;
-        x_intv = shift_in_dir(cur.id, dx, EAST, m_map);
-        dx = m_ray.shoot_ray_east<Obstacle>(x_intv)+1;
-        tempx += dx;
-        x_intv = shift_in_dir(x_intv, dx, EAST, m_map);
-        if(tempx + cur_coord.first > m_map.width())//reached map boundary
-        {
-            hx = curh;
-        }
-        else
-        {
-            hx = m_heuristic.h(x_intv.id, m_target.id);
-        }
-    }
-    else    
-    {
-        auto dx = m_ray.shoot_ray_west<Travasable>(cur.id)+1;
-        tempx += dx;
-        x_intv = shift_in_dir(cur.id, dx, WEST, m_map);
-        dx = m_ray.shoot_ray_west<Obstacle>(x_intv)+1;
-        tempx += dx;
-        x_intv = shift_in_dir(x_intv, dx, WEST, m_map);
-        if(tempx > cur_coord.first)//reached map boundary
-        {
-            hx = curh;
-        }
-        else
-        {
-            hx = m_heuristic.h(x_intv.id, m_target.id);
-        }
-    }
 
-    // hx = m_heuristic.h(x_intv.id, m_target.id);
-    // hy = m_heuristic.h(y_intv.id, m_target.id);
+    auto jump = m_jps->jump_cardinal(vert_dir, jps_id{cur.id.id}, m_jps->id_to_rid(jps_id{cur.id.id}));
+    //if jump finds a turning point, jump.first will be positive, deadends will be negative
+    //interval point will be either a turning point if one is found, otherwise the first point that leaves the obstacle in x direction
+    y_intv = jump.first > 0 ?   jump.second:
+                                m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, vert_dir, m_map) , vert_dir).second;  //need to shift by 1 to start inside obstacle
+    
+    jump = m_jps->jump_cardinal(hori_dir, jps_id{cur.id.id}, m_jps->id_to_rid(jps_id{cur.id.id}));
+    x_intv = jump.first > 0 ?   jump.second:
+                                m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, hori_dir, m_map) , hori_dir).second;  //need to shift by 1 to start inside obstacle
+    
+    hx = m_heuristic.h(x_intv.id, m_target.id);
+    hy = m_heuristic.h(y_intv.id, m_target.id);
     // if(cur.id.id % m_map.width() != y_intv.id % m_map.width()) hy = DBL_MAX;
     // if(cur.id.id / m_map.width() != x_intv.id / m_map.width()) hx = DBL_MAX;
     m_tracer->expand(m_map.id_to_xy(x_intv), "orange", "intx, h: " + to_string(hx));

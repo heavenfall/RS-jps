@@ -83,7 +83,7 @@ static inline bool on_left_octant(std::pair<uint32_t, uint32_t> f, std::pair<uin
 }
 
 template <direction D>
-constexpr Octants left_octant()
+constexpr Octants get_left_octant()
 {
     static_assert(
 	    D == NORTHEAST || D == NORTHWEST || D == SOUTHEAST || D == SOUTHWEST,
@@ -96,7 +96,7 @@ constexpr Octants left_octant()
 }
 
 template <direction D>
-constexpr Octants right_octant()
+constexpr Octants get_right_octant()
 {
     static_assert(
 	    D == NORTHEAST || D == NORTHWEST || D == SOUTHEAST || D == SOUTHWEST,
@@ -241,18 +241,11 @@ inline bool get_init_scan_top(direction scan_dir)
     }
 }
 
-
 inline constexpr bool horizontally_bound(Octants O)
 {
     return (O == Octants::NNE || O == Octants::NNW|| O == Octants::SSE|| O == Octants::SSW);
 }
 
-static Octants target_octant(std::pair<uint32_t, uint32_t> f, std::pair<uint32_t, uint32_t> t)
-{
-    int x = (int)t.first - (int)f.first, y = (int)t.second - (int)f.second;
-    if(x>0 && y>x) return Octants::SSW;
-    else return Octants::SSE;
-}
 
 }
 

@@ -12,17 +12,18 @@ private:
     jump::jump_point_online<>* m_jps;
     std::shared_ptr<Tracer> m_tracer;    
     gridmap::bittable m_map;
-	gridmap::bittable m_rmap;
-    
+	gridmap::bittable m_rmap;    
 
+    template<bool East, Domain D>
+    uint32_t shoot_hori_ray(pad_id start, domain::gridmap::bittable map);
 
 public:
     Ray(std::shared_ptr<Tracer> tracer, jump::jump_point_online<>* _jps)
         : m_tracer(tracer), m_jps(_jps), m_map(m_jps->get_map()), m_rmap(m_jps->get_rmap()) {};
     ~Ray() = default;
 
-    template<bool East, Domain D>
-    uint32_t shoot_hori_ray(pad_id start, domain::gridmap::bittable map);
+    template <Domain D>
+    std::pair<uint32_t, pad_id> shoot_hori_ray(pad_id start, direction dir);
 
     template <Domain D>
     inline uint32_t shoot_ray_north(pad_id start){return shoot_hori_ray<true, D>(pad_id{m_jps->id_to_rid(jps_id{start}).id}, m_rmap);};
@@ -66,14 +67,22 @@ uint32_t Ray::shoot_hori_ray(pad_id start, domain::gridmap::bittable map)
         slider.adj_bytes(-7);
         slider.width8_bits = (7-slider.width8_bits);
     }
+    //because we're counting 0's, and map stores travasable as 1, 
+    //flip the bits if the ray's domain is in Travasable space
     uint64_t mid = (D==Travasable)? ~slider.get_neighbours_64bit_le()[0]
                                     :slider.get_neighbours_64bit_le()[0];
     maskzero<East>(mid, slider.width8_bits);
-    //if the ray is in obstacle domain, flip the bits again so obstacle = 0 and travasable = 1
 
     if(mid)
     {
         steps = East? std::countr_zero(mid) : std::countl_zero(mid);
+        //for ray inside obstacles, we need to account for ray shooting outside the map boundary and wrapping to the next row
+        if constexpr(D == Obstacle)
+        {
+            bool wrapped = East? steps > (map.width() - (start.id % map.width())) :
+                                 steps > (start.id % map.width());
+            if(wrapped) return UINT32_MAX;
+        }
         return steps - slider.width8_bits - 1;
     }
     steps += 63 - slider.width8_bits -1;
@@ -92,6 +101,34 @@ uint32_t Ray::shoot_hori_ray(pad_id start, domain::gridmap::bittable map)
         slider.adj_bytes(East? 7 : -7);
         steps += 63  - slider.width8_bits;
     }    
+}
+
+template <Domain D>
+std::pair<uint32_t, pad_id> Ray::shoot_hori_ray(pad_id start, direction dir)
+{
+    auto ret = std::pair<uint32_t, pad_id>{};
+    switch (dir)
+    {
+    case NORTH:
+        ret.first = this->shoot_ray_north<D>(start);
+        ret.second = shift_in_dir(start, ret.first, NORTH, m_map);
+        break;
+    case SOUTH:
+        ret.first = this->shoot_ray_south<D>(start);
+        ret.second = shift_in_dir(start, ret.first, SOUTH, m_map);
+        break;
+    case EAST:
+        ret.first = this->shoot_ray_east<D>(start);
+        ret.second = shift_in_dir(start, ret.first, EAST, m_map);
+        break;
+    case WEST:
+        ret.first = this->shoot_ray_west<D>(start);
+        ret.second = shift_in_dir(start, ret.first, WEST, m_map);
+        break;
+    default:
+        break;
+    }
+    return ret;
 }
 
 /*Shoots a generic ray towards the target, if target is vislble returns target, 
@@ -207,8 +244,7 @@ pad_id Ray::shoot_diag_ray_id(pad_id start, pad_id target, direction dir)
 template<SolverTraits ST>
 pad_id Ray::shoot_rjps_ray(pad_id start, direction d, std::vector<rjps_node> &vec, rjps_node parent)
 {
-    auto steps = uint32_t{0};
-    auto ret = m_jps->jump_cardinal(d, jps_id{start.id}, m_jps->id_to_rid(jps_id{start}));
+    auto ret = m_jps->jump_cardinal(d, jps_id{start.id}, m_jps->id_to_rid(jps_id{start.id}));
     if constexpr(ST == SolverTraits::OutputToPosthoc) m_tracer->trace_ray(m_map.id_to_xy(start), m_map.id_to_xy(pad_id{ret.second}), "green", "jps ray");
     while (ret.first > 0)
     {
@@ -224,8 +260,7 @@ pad_id Ray::shoot_rjps_ray(pad_id start, direction d, std::vector<rjps_node> &ve
 template<SolverTraits ST>
 pad_id Ray::shoot_rjps_ray_to_target(pad_id start, pad_id target, direction d, std::vector<rjps_node> &vec, rjps_node parent)
 {
-    auto steps = uint32_t{0};
-    auto ret = m_jps->jump_cardinal(d, jps_id{start.id}, m_jps->id_to_rid(jps_id{start}));
+    auto ret = m_jps->jump_cardinal(d, jps_id{start.id}, m_jps->id_to_rid(jps_id{start.id}));
     if constexpr(ST == SolverTraits::OutputToPosthoc) m_tracer->trace_ray(m_map.id_to_xy(start), m_map.id_to_xy(pad_id{ret.second}), "green", "jps ray");
     while (ret.first > 0)
     {
