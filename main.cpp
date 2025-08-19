@@ -118,8 +118,8 @@ void test3(warthog::util::scenario_manager &scen_mngr, string mapname, size_t i)
 }
 
 static const string MAPNAME = "den011d";
-constexpr bool test = true;
-static const int TESTCASE = 749;
+constexpr bool test = false;
+static const int TESTCASE = 711;
 int main(int argc, char** argv)
 {
     // parse arguments

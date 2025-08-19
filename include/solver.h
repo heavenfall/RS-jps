@@ -131,7 +131,6 @@ void Solver<ST>::expand(rjps_node cur, std::vector<rjps_node> &heap)
 	    D == NORTHEAST || D == NORTHWEST || D == SOUTHEAST || D == SOUTHWEST,
 	    "D must be inter-cardinal.");
     auto cur_coord = m_map.id_to_xy(cur.id);
-    auto target_coord = m_map.id_to_xy(m_target);
 
     //coord postion of ray intersec from shooting to target, potentially unused
     auto temp = pad_id{}, target_scan_start = temp;
@@ -143,7 +142,7 @@ void Solver<ST>::expand(rjps_node cur, std::vector<rjps_node> &heap)
     if(target_in_scan_quad(cur.id, cur.dir))
     {
         std::pair<bool, pad_id> vis_res;
-        if(on_left_octant<D>(cur_coord, target_coord))
+        if(on_left_octant<D>(cur_coord, m_tcoord))
         {
             vis_res = m_ray.check_target_visible<ST, loct>(cur.id, m_target, cur.dir);
         }
@@ -156,7 +155,7 @@ void Solver<ST>::expand(rjps_node cur, std::vector<rjps_node> &heap)
         {
             auto t = rjps_node{m_target, &m_node_map.find(uint64_t(cur.id))->second, m_map.id_to_xy(m_target), NONE};
             t.hval = 0;
-            t.gval = m_heuristic.h(target_coord.first, target_coord.second, cur_coord.first, cur_coord.second) + cur.gval;
+            t.gval = m_heuristic.h(m_tcoord.first, m_tcoord.second, cur_coord.first, cur_coord.second) + cur.gval;
             heap.emplace_back(t);
             return;
         }
@@ -202,7 +201,7 @@ void Solver<ST>::expand(rjps_node cur, std::vector<rjps_node> &heap)
     if(target_blocked)[[unlikely]]
     {
         uint32_t cw_bound = 0, ccw_bound = 0;
-        if(on_left_octant<D>(cur_coord, target_coord))
+        if(on_left_octant<D>(cur_coord, m_tcoord))
         {
             //left octant always uses diag bounds as scanning bound for CW, and horizontal bounds for CCW
             if constexpr (horizontally_bound(loct)) {cw_bound = diag_bounds.first, ccw_bound = cur_coord.first;}
@@ -237,15 +236,18 @@ void Solver<ST>::query(pad_id start, pad_id target)
     m_stats = experiment_result{};
     m_node_map.clear();
     m_target = target;
-    auto start_coord = m_map.id_to_xy(start), target_coord = m_map.id_to_xy(target);
+    m_tcoord = m_map.id_to_xy(target);
+    auto start_coord = m_map.id_to_xy(start);
     if constexpr(ST == SolverTraits::OutputToPosthoc)
     {
-        m_tracer->init(start_coord, target_coord);
+        m_tracer->init(start_coord, m_tcoord);
     }
     auto cmp = [](rjps_node a, rjps_node b){return (a.gval + a.hval) > (b.gval + b.hval);};
     std::vector<rjps_node> heap{};
     heap.reserve(2048);
     
+    auto test = target_in_scan_quad(m_map.xy_to_id(147, 107), SOUTHEAST);
+
     m_timer.start();
     auto start_node = rjps_node{start, nullptr, m_map.id_to_xy(start), NONE};
     start_node.gval = 0;
@@ -309,7 +311,7 @@ void Solver<ST>::query(pad_id start, pad_id target)
             {
                 for(auto i = tmp_size; i < heap.size(); i++)
                 {
-                    m_tracer->expand(m_map.id_to_xy(heap[i].id), "fuchsia", "generating, g: " + to_string(heap[i].gval) + " ,f: "+ to_string(heap[i].gval + heap[i].hval));
+                    m_tracer->expand(m_map.id_to_xy(heap[i].id), "fuchsia", "generating, g: " + to_string(heap[i].gval) + " ,f: "+ to_string(heap[i].gval + heap[i].hval) + ", dir:" + to_string(heap[i].dir));
                 }
             }
             //reconsolidate heap
@@ -368,22 +370,6 @@ inline bool Solver<ST>::target_in_scan_quad(pad_id start, direction quad)
         assert(false);
         break;
     }
-    // if      constexpr(D == NORTHEAST)
-    // {
-    //     return(m_tcoord.first >= s.first && m_tcoord.second <= s.second);
-    // }
-    // else if constexpr(D == NORTHWEST)
-    // {
-    //     return(m_tcoord.first <= s.first && m_tcoord.second <= s.second);
-    // }    
-    // else if constexpr(D == SOUTHEAST)
-    // {
-    //     return(m_tcoord.first >= s.first && m_tcoord.second >= s.second);
-    // }
-    // else if constexpr(D == SOUTHWEST)
-    // {
-    //     return(m_tcoord.first <= s.first && m_tcoord.second >= s.second);
-    // }
 }
 
 template <SolverTraits ST>
@@ -905,26 +891,36 @@ inline double Solver<ST>::interval_h(rjps_node cur)
         return m_heuristic.h(cur.id.id, m_target.id);
     }
     
-    double hx = 0, hy = 0, curh = m_heuristic.h(cur.id.id, m_target.id);
+    double hx = 0, hy = 0;
     auto hori_dir = direction{}, vert_dir = direction{};
     auto x_intv = pad_id{}, y_intv = x_intv;
     vert_dir = (cur.dir == NORTHEAST || cur.dir == NORTHWEST) ? NORTH : SOUTH;
     hori_dir = (cur.dir == NORTHEAST || cur.dir == SOUTHEAST) ? EAST : WEST;
 
     auto jump = m_jps->jump_cardinal(vert_dir, jps_id{cur.id.id}, m_jps->id_to_rid(jps_id{cur.id.id}));
+    hy += abs(jump.first);
     //if jump finds a turning point, jump.first will be positive, deadends will be negative
     //interval point will be either a turning point if one is found, otherwise the first point that leaves the obstacle in x direction
-    y_intv = jump.first > 0 ?   jump.second:
-                                m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, vert_dir, m_map) , vert_dir).second;  //need to shift by 1 to start inside obstacle
+    if(jump.first > 0) y_intv = jump.second;
+    else
+    {
+        //need to shift by 1 to start inside obstacle
+        auto r = m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, vert_dir, m_map) , vert_dir);
+        y_intv = r.second;
+        hy += r.first;
+    }
     
     jump = m_jps->jump_cardinal(hori_dir, jps_id{cur.id.id}, m_jps->id_to_rid(jps_id{cur.id.id}));
-    x_intv = jump.first > 0 ?   jump.second:
-                                m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, hori_dir, m_map) , hori_dir).second;  //need to shift by 1 to start inside obstacle
-    
-    hx = m_heuristic.h(x_intv.id, m_target.id);
-    hy = m_heuristic.h(y_intv.id, m_target.id);
-    // if(cur.id.id % m_map.width() != y_intv.id % m_map.width()) hy = DBL_MAX;
-    // if(cur.id.id / m_map.width() != x_intv.id / m_map.width()) hx = DBL_MAX;
+    hx += abs(jump.first);
+    if(jump.first > 0) x_intv = jump.second; 
+    else
+    {
+        auto r = m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, hori_dir, m_map) , hori_dir);
+        x_intv = r.second;
+        hx += r.first;
+    }
+    hx += m_heuristic.h(x_intv.id, m_target.id);
+    hy += m_heuristic.h(y_intv.id, m_target.id);
     m_tracer->expand(m_map.id_to_xy(x_intv), "orange", "intx, h: " + to_string(hx));
     m_tracer->expand(m_map.id_to_xy(y_intv), "orange", "inty, h: " + to_string(hy));
     return std::min(hx, hy);

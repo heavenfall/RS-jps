@@ -96,6 +96,12 @@ uint32_t Ray::shoot_hori_ray(pad_id start, domain::gridmap::bittable map)
         if(mid)
         {
             steps += East? std::countr_zero(mid) : std::countl_zero(mid);
+            if constexpr(D == Obstacle)
+            {
+                bool wrapped = East? steps > (map.width() - (start.id % map.width())) :
+                                    steps > (start.id % map.width());
+                if(wrapped) return UINT32_MAX;
+            }
             return steps - slider.width8_bits;
         }
         slider.adj_bytes(East? 7 : -7);
@@ -128,6 +134,7 @@ std::pair<uint32_t, pad_id> Ray::shoot_hori_ray(pad_id start, direction dir)
     default:
         break;
     }
+    if(ret.first == UINT32_MAX) ret.second = pad_id::max();
     return ret;
 }
 
