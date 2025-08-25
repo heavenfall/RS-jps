@@ -251,7 +251,7 @@ void Solver<ST>::query(pad_id start, pad_id target)
     m_timer.start();
     auto start_node = rjps_node{start, nullptr, m_map.id_to_xy(start), NONE};
     start_node.gval = 0;
-    // start_node.hval = m_heuristic.h(start_coord.first, start_coord.second, target_coord.first, target_coord.second);
+    // start_node.hval = m_heuristic.h(start_coord.first, start_coord.second, m_tcoord.first, m_tcoord.second);
     {
     start_node.dir = NORTHEAST;
     start_node.hval = interval_h(start_node);
@@ -271,6 +271,7 @@ void Solver<ST>::query(pad_id start, pad_id target)
     // start_node.quad_mask = (direction)UINT8_MAX;    // == 11111111
     m_node_map.try_emplace((uint64_t)start_node.id, start_node);
     }
+    std::make_heap(heap.begin(), heap.end(), cmp);
     int iter = 0;
     while(!heap.empty())
     {
@@ -907,7 +908,7 @@ inline double Solver<ST>::interval_h(rjps_node cur)
         //need to shift by 1 to start inside obstacle
         auto r = m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, vert_dir, m_map) , vert_dir);
         y_intv = r.second;
-        hy += r.first;
+        hy += r.first + DBL_ROOT_TWO;
     }
     
     jump = m_jps->jump_cardinal(hori_dir, jps_id{cur.id.id}, m_jps->id_to_rid(jps_id{cur.id.id}));
@@ -917,7 +918,7 @@ inline double Solver<ST>::interval_h(rjps_node cur)
     {
         auto r = m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, hori_dir, m_map) , hori_dir);
         x_intv = r.second;
-        hx += r.first;
+        hx += r.first + DBL_ROOT_TWO;
     }
     hx += m_heuristic.h(x_intv.id, m_target.id);
     hy += m_heuristic.h(y_intv.id, m_target.id);
