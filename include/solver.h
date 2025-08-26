@@ -7,6 +7,7 @@
 #include <warthog/util/timer.h>
 #include <queue>
 #include <unordered_map>
+#include <boost/heap/fibonacci_heap.hpp>
 
 //0x1.6a09e6p0 - root2
 
@@ -243,9 +244,10 @@ void Solver<ST>::query(pad_id start, pad_id target)
         m_tracer->init(start_coord, m_tcoord);
     }
     auto cmp = [](rjps_node a, rjps_node b){return (a.gval + a.hval) > (b.gval + b.hval);};
+    auto fheap = boost::heap::fibonacci_heap<rjps_node, boost::heap::compare<cmp_min_rjps_node>>();
     std::vector<rjps_node> heap{};
     heap.reserve(2048);
-    
+
     auto test = target_in_scan_quad(m_map.xy_to_id(147, 107), SOUTHEAST);
 
     m_timer.start();
@@ -256,7 +258,7 @@ void Solver<ST>::query(pad_id start, pad_id target)
     start_node.dir = NORTHEAST;
     start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
-
+        
     start_node.dir = NORTHWEST;
     start_node.hval = interval_h(start_node);
     heap.push_back(start_node);
@@ -458,10 +460,8 @@ void Solver<ST>::init_rjps_nodes(vector<rjps_node> &heap, rjps_node parent, size
             // assert(false);
             if(node.id == m_target) return;
         }
-        bool top = m_map.get(shift_in_dir(node.id, 1, top_adj, m_map));
-        bool bottom = m_map.get(shift_in_dir(node.id, 1, bottom_adj, m_map));
-        top =!top; 
-        bottom=!bottom;
+        bool top = !m_map.get(shift_in_dir(node.id, 1, top_adj, m_map));
+        bool bottom = !m_map.get(shift_in_dir(node.id, 1, bottom_adj, m_map));
         if(top && bottom) [[unlikely]]
         {
             auto tmp_dir = node.dir;
@@ -910,7 +910,7 @@ inline double Solver<ST>::interval_h(rjps_node cur)
         y_intv = r.second;
         hy += r.first + DBL_ROOT_TWO;
     }
-    
+
     jump = m_jps->jump_cardinal(hori_dir, jps_id{cur.id.id}, m_jps->id_to_rid(jps_id{cur.id.id}));
     hx += abs(jump.first);
     if(jump.first > 0) x_intv = jump.second; 
@@ -922,8 +922,11 @@ inline double Solver<ST>::interval_h(rjps_node cur)
     }
     hx += m_heuristic.h(x_intv.id, m_target.id);
     hy += m_heuristic.h(y_intv.id, m_target.id);
-    m_tracer->expand(m_map.id_to_xy(x_intv), "orange", "intx, h: " + to_string(hx));
-    m_tracer->expand(m_map.id_to_xy(y_intv), "orange", "inty, h: " + to_string(hy));
+    if constexpr(ST == SolverTraits::OutputToPosthoc)
+    {
+        m_tracer->expand(m_map.id_to_xy(x_intv), "orange", "intx, h: " + to_string(hx));
+        m_tracer->expand(m_map.id_to_xy(y_intv), "orange", "inty, h: " + to_string(hy));
+    }
     return std::min(hx, hy);
 }
 

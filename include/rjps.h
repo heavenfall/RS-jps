@@ -44,6 +44,14 @@ struct rjps_node
     rjps_node(){};
 };
 
+struct cmp_min_rjps_node
+{
+    bool operator()(const rjps_node &a, const rjps_node &b) const
+    {
+        return (a.gval + a.hval) > (b.gval + b.hval);
+    }
+};
+
 namespace ScanAttribute
 {
 enum Orientation
