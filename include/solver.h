@@ -159,11 +159,6 @@ void Solver<ST>::expand(search_node cur)
         {
             m_succ.emplace_back(m_target);
             return;
-            // auto t = search_node{m_target, &m_node_map.find(uint64_t(cur.state.id))->second, m_map.id_to_xy(m_target), NONE};
-            // t.hval = 0;
-            // t.gval = m_octile_h.h(m_tcoord.first, m_tcoord.second, cur_coord.first, cur_coord.second) + cur.state.gval;
-            // heap.emplace_back(t);
-            // return;
         }
         //save the coord of the blocking cell, then scan later from cell after getting the bounds for scanning
         else    

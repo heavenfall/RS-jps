@@ -75,7 +75,7 @@ void run_scenario(warthog::util::scenario_manager &scen_mngr, string mapname)
         pad_id target = map.to_padded_id_from_unpadded(uint32_t(cur_exp->goalx()), uint32_t(cur_exp->goaly()));
         s.get_path(start, target);
         auto res = s.get_result();
-        if (std::fabs(res.plenth - cur_exp->distance()) <= EPSILON) assert(false &&"failed " + to_string(i));
+        if (std::fabs(res.plenth - cur_exp->distance()) > EPSILON) assert(false &&"failed ");
         if constexpr(Test)
         {
             if (std::fabs(res.plenth - cur_exp->distance()) <= EPSILON) std::cout << "\033[1;32m";  //green 
@@ -122,9 +122,9 @@ void run_single_test(warthog::util::scenario_manager &scen_mngr, string mapname,
     std::cout << "\033[0m\n";
 }
 
-static const string MAPNAME = "scene_sp_cha_01";
-constexpr bool test = false;
-static const int TESTCASE = 977;
+static const string MAPNAME = "scen/scene_sp_rus_04";
+constexpr bool test = true;
+static const int TESTCASE = 697;
 int main(int argc, char** argv)
 {
     // parse arguments
