@@ -66,7 +66,7 @@ void run_scenario(warthog::util::scenario_manager &scen_mngr, string mapname)
     warthog::domain::gridmap map(mapfile.c_str());
     jps::jump::jump_point_online jps(&map);
     auto s = Solver<SolverTraits::Default>(&jps);
-    std::cout << "experiment\toptimal plenth\trjps plenth\texpanded\tgenerated\treopend\tupdated\theap_pops\tnanos\n";
+    std::cout << "experiment\t\toptimal plenth\t\trjps plenth\t\texpanded\t\tgenerated\t\treopend\t\tupdated\t\theap_pops\t\tnanos\t\texpansion time\n";
     // Solver<2> s(&jps);
     for (size_t i = 0; i < scen_mngr.num_experiments(); i++)
     {
@@ -82,14 +82,15 @@ void run_scenario(warthog::util::scenario_manager &scen_mngr, string mapname)
             else                                                        std::cout << "\033[1;31m";  //red
         }
         std::cout << i;
-        std::cout << "\t" << std::fixed << std::setprecision(10) << cur_exp->distance();
-        std::cout << "\t"  << std::fixed << std::setprecision(10) << res.plenth;
-        std::cout << "\t"  << res.expanded;
-        std::cout << "\t"  << res.generated;
-        std::cout << "\t"  << res.reopend;
-        std::cout << "\t"  << res.updated;
-        std::cout << "\t"  << res.heap_pops;
-        std::cout << "\t"  << to_string(res.nanos.count());
+        std::cout << "\t\t" << std::fixed << std::setprecision(10) << cur_exp->distance();
+        std::cout << "\t\t"  << std::fixed << std::setprecision(10) << res.plenth;
+        std::cout << "\t\t"  << res.expanded;
+        std::cout << "\t\t"  << res.generated;
+        std::cout << "\t\t"  << res.reopend;
+        std::cout << "\t\t"  << res.updated;
+        std::cout << "\t\t"  << res.heap_pops;
+        std::cout << "\t\t"  << to_string(res.nanos.count());
+        std::cout << "\t\t"  << to_string(res.ray_scan_time/res.nanos.count());
         if constexpr(Test) std::cout << "\033[0m";
 
         std::cout << '\n';
@@ -122,9 +123,9 @@ void run_single_test(warthog::util::scenario_manager &scen_mngr, string mapname,
     std::cout << "\033[0m\n";
 }
 
-static const string MAPNAME = "scen/scene_sp_rus_04";
-constexpr bool test = true;
-static const int TESTCASE = 697;
+static const string MAPNAME = "scen/scene_sp_rus_02";
+constexpr bool test = false;
+static const int TESTCASE = 1987;
 int main(int argc, char** argv)
 {
     // parse arguments

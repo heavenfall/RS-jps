@@ -9,6 +9,7 @@
 
 
 #include <boost/heap/fibonacci_heap.hpp>
+#include <boost/heap/pairing_heap.hpp>
 
 // typedef typename boost::heap::fibonacci_heap<>::handle_type handle_t;
 using namespace warthog::domain;
@@ -44,7 +45,7 @@ struct search_node
     search_node*    parent = nullptr;
     double          gval = 0;
     double          hval = DBL_MAX;
-    boost::heap::fibonacci_heap<search_node>::handle_type handle;
+    boost::heap::pairing_heap<search_node>::handle_type handle;
     const inline std::string get_key()
     {
         return std::string(std::to_string((uint64_t)state.id) +':'+ std::to_string(state.dir));
@@ -316,27 +317,32 @@ static constexpr std::array<std::array<direction, 2>, 4>d_scan{{
 {WEST, NORTH}, 
 {NORTH, EAST}}};
 
+static inline int get_succ_sector(direction parent_s, direction jps, bool top)
+{
+    return ((int)top <<20 |(int) parent_s <<10 | (int)jps);
+}
+
 using namespace std;
-static std::map<std::string, direction>quad{
-    {to_string(NORTHEAST) + to_string(NORTH) + to_string(true),  NORTHWEST},
-    {to_string(NORTHEAST) + to_string(NORTH) + to_string(false), NORTHEAST},
-    {to_string(NORTHEAST) + to_string(EAST)  + to_string(true),  NORTHEAST},
-    {to_string(NORTHEAST) + to_string(EAST) + to_string(false),  SOUTHEAST},
+static const std::unordered_map<int, direction>quad{
+    {get_succ_sector(NORTHEAST, NORTH, true),  NORTHWEST},
+    {get_succ_sector(NORTHEAST, NORTH, false), NORTHEAST},
+    {get_succ_sector(NORTHEAST, EAST, true),  NORTHEAST},
+    {get_succ_sector(NORTHEAST, EAST, false),  SOUTHEAST},
 
-    {to_string(NORTHWEST) + to_string(NORTH) + to_string(true),  NORTHWEST},
-    {to_string(NORTHWEST) + to_string(NORTH) + to_string(false), NORTHEAST},
-    {to_string(NORTHWEST) + to_string(WEST)  + to_string(true),  NORTHWEST},
-    {to_string(NORTHWEST) + to_string(WEST) + to_string(false),  SOUTHWEST},
+    {get_succ_sector(NORTHWEST, NORTH, true),  NORTHWEST},
+    {get_succ_sector(NORTHWEST, NORTH, false), NORTHEAST},
+    {get_succ_sector(NORTHWEST, WEST, true),  NORTHWEST},
+    {get_succ_sector(NORTHWEST, WEST, false),  SOUTHWEST},
 
-    {to_string(SOUTHEAST) + to_string(SOUTH) + to_string(true),  SOUTHWEST},
-    {to_string(SOUTHEAST) + to_string(SOUTH) + to_string(false), SOUTHEAST},
-    {to_string(SOUTHEAST) + to_string(EAST)  + to_string(true),  NORTHEAST},
-    {to_string(SOUTHEAST) + to_string(EAST) + to_string(false),  SOUTHEAST},
+    {get_succ_sector(SOUTHEAST, SOUTH, true),  SOUTHWEST},
+    {get_succ_sector(SOUTHEAST, SOUTH, false), SOUTHEAST},
+    {get_succ_sector(SOUTHEAST, EAST, true),  NORTHEAST},
+    {get_succ_sector(SOUTHEAST, EAST, false),  SOUTHEAST},
 
-    {to_string(SOUTHWEST) + to_string(SOUTH) + to_string(true),  SOUTHWEST},
-    {to_string(SOUTHWEST) + to_string(SOUTH) + to_string(false), SOUTHEAST},
-    {to_string(SOUTHWEST) + to_string(WEST)  + to_string(true),  NORTHWEST},
-    {to_string(SOUTHWEST) + to_string(WEST) + to_string(false),  SOUTHWEST}
+    {get_succ_sector(SOUTHWEST, SOUTH, true),  SOUTHWEST},
+    {get_succ_sector(SOUTHWEST, SOUTH, false), SOUTHEAST},
+    {get_succ_sector(SOUTHWEST, WEST, true),  NORTHWEST},
+    {get_succ_sector(SOUTHWEST, WEST, false),  SOUTHWEST}
 };
 
 // NORTHEAST 0

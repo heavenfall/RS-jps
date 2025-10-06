@@ -7,7 +7,8 @@
 #include <warthog/util/timer.h>
 #include <queue>
 #include <unordered_map>
-#include <boost/heap/fibonacci_heap.hpp>
+// #include <boost/heap/pairing_heap.hpp>
+#include <boost/heap/pairing_heap.hpp>
 
 // typedef typename boost::heap::fibonacci_heap<search_node>::handle_type handle_t;
 //0x1.6a09e6p0 - root2
@@ -36,6 +37,7 @@ struct DirectionInfo
 struct experiment_result
 {
     std::chrono::nanoseconds  nanos{};
+    double  ray_scan_time{};
     double  plenth{};
     int     heap_pops{};
     int     generated{};
@@ -76,7 +78,7 @@ private:
     warthog::util::timer                m_timer;
     std::vector<rjps_state>             m_succ;
     std::unordered_map<string, search_node> m_all_node_list;
-    boost::heap::fibonacci_heap<search_node> m_pq;
+    boost::heap::pairing_heap<search_node> m_pq;
 
     void expand_node(search_node n);
     template <direction D>
@@ -271,7 +273,10 @@ void Solver<ST>::get_path(pad_id start, pad_id target)
         m_pq.pop();
         // std::cout << (cur.gval + cur.hval)<< " id: " << to_string((uint64_t)cur.state.id) << " size: " +to_string(m_pq.size())+'\n';
         auto cur_coord = m_map.id_to_xy(cur.state.id);
+        auto exp_start = m_timer.elapsed_time_nano();
         expand_node(cur);
+        auto exp_end = m_timer.elapsed_time_nano();
+        m_stats.ray_scan_time += exp_end.count()-exp_start.count();
         auto cur_ptr = &m_all_node_list[cur.get_key()];   //pass the cur node pointer for successors
         cur_ptr->closed = true;
         generate(cur_ptr);
@@ -418,19 +423,14 @@ inline void Solver<ST>::generate(search_node* parent)
         if(top && bottom) [[unlikely]]
         {
             auto aux_succ = succ;
-            succ.dir = quad.at(to_string(parent->state.dir) + to_string(succ.dir) + to_string(true));
+            succ.dir = quad.at(get_succ_sector(parent->state.dir, succ.dir, true));
             insert(succ, parent);
-            aux_succ.dir = quad.at(to_string(parent->state.dir) + to_string(aux_succ.dir) + to_string(false));
+            aux_succ.dir = quad.at(get_succ_sector(parent->state.dir, aux_succ.dir, false));
             insert(aux_succ, parent);
-        }
-        else if(top)
-        {
-            succ.dir = quad.at(to_string(parent->state.dir) + to_string(succ.dir) + to_string(true));
-            insert(succ, parent);
         }
         else
         {
-            succ.dir = quad.at(to_string(parent->state.dir) + to_string(succ.dir) + to_string(false));
+            succ.dir = quad.at(get_succ_sector(parent->state.dir, succ.dir, top));
             insert(succ, parent);        
         }
     }
@@ -447,12 +447,15 @@ void Solver<ST>::insert(rjps_state succ, search_node *pred)
     {
         m_stats.generated++;
         n.hval = interval_h(n.state);
+        if constexpr(ST == SolverTraits::OutputToPosthoc)
+        {
         m_tracer->expand(m_map.id_to_xy(n.state.id), "fuchsia", 
             "generating, h: " + to_string(n.hval) +
             " ,g: " + to_string(n.gval) + 
             " ,f: "+ to_string(n.gval + n.hval) + 
             " ,dir:" + to_string(n.state.dir));
-        boost::heap::fibonacci_heap<search_node>::handle_type h = m_pq.push(n);
+        }
+        boost::heap::pairing_heap<search_node>::handle_type h = m_pq.push(n);
         (*h).handle = h;
         auto err = m_all_node_list.emplace(std::make_pair(n.get_key(), *h));        
         assert(err.second);
@@ -466,14 +469,17 @@ void Solver<ST>::insert(rjps_state succ, search_node *pred)
             {
                 m_stats.reopend++;
                 n.hval = e.hval;
-                boost::heap::fibonacci_heap<search_node>::handle_type h = m_pq.push(n);
+                boost::heap::pairing_heap<search_node>::handle_type h = m_pq.push(n);
                 (*h).handle = h;
                 exist->second = *h;
+                if constexpr(ST == SolverTraits::OutputToPosthoc)
+                {
                 m_tracer->expand(m_map.id_to_xy(n.state.id), "red", 
                     "re-opening, h: " + to_string(n.hval) +
                     " ,g: " + to_string(n.gval) + 
                     " ,f: "+ to_string(n.gval + n.hval) + 
                     " ,dir:" + to_string(n.state.dir));
+                }
                 // assert(false && "reopeing not handled");
             }
             else
@@ -482,11 +488,14 @@ void Solver<ST>::insert(rjps_state succ, search_node *pred)
                 n.hval = e.hval;
                 e.gval = n.gval;
                 e.parent = n.parent;
+                if constexpr(ST == SolverTraits::OutputToPosthoc)
+                {
                 m_tracer->expand(m_map.id_to_xy(n.state.id), "yellow", 
                     "updating, h: " + to_string(n.hval) +
                     " ,g: " + to_string(n.gval) + 
                     " ,f: "+ to_string(n.gval + n.hval) + 
                     " ,dir:" + to_string(n.state.dir));
+                }
                 m_pq.decrease(e.handle, n);
             }
         }
@@ -501,7 +510,7 @@ inline void Solver<ST>::insert_start_state(const rjps_state& succ)
     n.hval = interval_h(succ);
     auto key = std::string(to_string((uint64_t)n.state.id) + to_string(n.state.dir));
 
-    boost::heap::fibonacci_heap<search_node>::handle_type h = m_pq.push(n);
+    boost::heap::pairing_heap<search_node>::handle_type h = m_pq.push(n);
     (*h).handle = h;
     auto err = m_all_node_list.emplace(std::make_pair(n.get_key(), *h));        
     assert(err.second);
@@ -612,47 +621,47 @@ template <SolverTraits ST>
 double Solver<ST>::interval_h(const rjps_state& v)
 {
     //if the target resides inside scanning sector, return regular octile heuristic
-    // return m_octile_h.h(v.id.id, m_target.id);
-    if (target_in_scan_quad(v.id, v.dir))
-    {
-        return m_octile_h.h(v.id.id, m_target.id);
-    }
+    return m_octile_h.h(v.id.id, m_target.id);
+    // if (target_in_scan_quad(v.id, v.dir))
+    // {
+    //     return m_octile_h.h(v.id.id, m_target.id);
+    // }
     
-    double hx = 0, hy = 0;
-    auto hori_dir = direction{}, vert_dir = direction{};
-    auto x_intv = pad_id{}, y_intv = x_intv;
-    vert_dir = (v.dir == NORTHEAST || v.dir == NORTHWEST) ? NORTH : SOUTH;
-    hori_dir = (v.dir == NORTHEAST || v.dir == SOUTHEAST) ? EAST : WEST;
+    // double hx = 0, hy = 0;
+    // auto hori_dir = direction{}, vert_dir = direction{};
+    // auto x_intv = pad_id{}, y_intv = x_intv;
+    // vert_dir = (v.dir == NORTHEAST || v.dir == NORTHWEST) ? NORTH : SOUTH;
+    // hori_dir = (v.dir == NORTHEAST || v.dir == SOUTHEAST) ? EAST : WEST;
 
-    auto jump = m_jps->jump_cardinal(vert_dir, jps_id{v.id}, m_jps->id_to_rid(jps_id{v.id}));
-    hy += abs(jump.first);
-    //if jump finds a turning point, jump.first will be positive, deadends will be negative
-    //interval point will be either a turning point if one is found, otherwise the first point that leaves the obstacle in x direction
-    if(jump.first > 0) y_intv = jump.second;
-    else
-    {
-        //need to shift by 1 to start inside obstacle
-        auto r = m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, vert_dir, m_map) , vert_dir);
-        y_intv = r.second;
-        hy += r.first + DBL_ROOT_TWO;
-    }
+    // auto jump = m_jps->jump_cardinal(vert_dir, jps_id{v.id}, m_jps->id_to_rid(jps_id{v.id}));
+    // hy += abs(jump.first);
+    // //if jump finds a turning point, jump.first will be positive, deadends will be negative
+    // //interval point will be either a turning point if one is found, otherwise the first point that leaves the obstacle in x direction
+    // if(jump.first > 0) y_intv = jump.second;
+    // else
+    // {
+    //     //need to shift by 1 to start inside obstacle
+    //     auto r = m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, vert_dir, m_map) , vert_dir);
+    //     y_intv = r.second;
+    //     hy += r.first + DBL_ROOT_TWO;
+    // }
 
-    jump = m_jps->jump_cardinal(hori_dir, jps_id{v.id}, m_jps->id_to_rid(jps_id{v.id}));
-    hx += abs(jump.first);
-    if(jump.first > 0) x_intv = jump.second; 
-    else
-    {
-        auto r = m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, hori_dir, m_map) , hori_dir);
-        x_intv = r.second;
-        hx += r.first + DBL_ROOT_TWO;
-    }
-    hx += m_octile_h.h(x_intv.id, m_target.id);
-    hy += m_octile_h.h(y_intv.id, m_target.id);
-    if constexpr(ST == SolverTraits::OutputToPosthoc)
-    {
-        m_tracer->draw_cell(m_map.id_to_xy(x_intv), "orange", "intx, h: " + to_string(hx));
-        m_tracer->draw_cell(m_map.id_to_xy(y_intv), "orange", "inty, h: " + to_string(hy));
-    }
-    return std::min(hx, hy);
+    // jump = m_jps->jump_cardinal(hori_dir, jps_id{v.id}, m_jps->id_to_rid(jps_id{v.id}));
+    // hx += abs(jump.first);
+    // if(jump.first > 0) x_intv = jump.second; 
+    // else
+    // {
+    //     auto r = m_ray.shoot_hori_ray<Obstacle>( shift_in_dir(jump.second, 1, hori_dir, m_map) , hori_dir);
+    //     x_intv = r.second;
+    //     hx += r.first + DBL_ROOT_TWO;
+    // }
+    // hx += m_octile_h.h(x_intv.id, m_target.id);
+    // hy += m_octile_h.h(y_intv.id, m_target.id);
+    // if constexpr(ST == SolverTraits::OutputToPosthoc)
+    // {
+    //     m_tracer->draw_cell(m_map.id_to_xy(x_intv), "orange", "intx, h: " + to_string(hx));
+    //     m_tracer->draw_cell(m_map.id_to_xy(y_intv), "orange", "inty, h: " + to_string(hy));
+    // }
+    // return std::min(hx, hy);
 }
 
