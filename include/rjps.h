@@ -326,7 +326,7 @@ inline constexpr std::array<std::array<direction_id, 2>, 4>d_scan{{
 inline uint32_t get_succ_sector(direction_id parent_s, direction_id jps, bool top)
 {
     assert(is_intercardinal_id(parent_s) && (dir_intercardinal_hori(parent_s)==jps || dir_intercardinal_vert(parent_s)==jps));
-    return (((uint32_t)parent_s - 4) << 2) |
+    return ((uint32_t)parent_s - 4) | // ((uint32_t)parent_s - 4) << 2
            ((uint32_t)(dir_intercardinal_hori(parent_s) == jps) << 1) |
            (uint32_t)top;
     // return ((int)top <<20 |(int) parent_s <<10 | (int)jps);
