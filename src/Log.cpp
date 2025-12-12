@@ -1,11 +1,11 @@
 #include <Log.h>
 
-void Tracer::expand(uint32_t x, uint32_t y, string color, string type)
+void Tracer::expand(uint32_t x, uint32_t y, std::string color, std::string type)
 {
     expand(point((int16_t)x, (int16_t)y), color, type);
 }
 
-void Tracer::expand(point p, string color, string type)
+void Tracer::expand(point p, std::string color, std::string type)
 {
     auto x = uint32_t{p.x}, y = uint32_t{p.y};  
     if (adj_for_padding)
@@ -18,7 +18,7 @@ void Tracer::expand(point p, string color, string type)
     ", x: " + std::to_string(x) + ", y: " + std::to_string(y) + "}\n";
     m_trace << trace;
 }
-void Tracer::draw_cell(point p, string color, string type)
+void Tracer::draw_cell(point p, std::string color, std::string type)
 {
     auto x = uint32_t{p.x}, y = uint32_t{p.y};  
     if (adj_for_padding)
@@ -46,14 +46,14 @@ void Tracer::close_node(point p)
     m_trace << trace;
 }
 
-void Tracer::trace_ray(point start, point finish, string color, string type)
+void Tracer::trace_ray(point start, point finish, std::string color, std::string type)
 {
     if (adj_for_padding)
     {
         start.y-=3;
         finish.y-=3;
     }
-    string s1 = std::to_string((int)finish.x - (int)start.x), s2 = std::to_string((int)finish.y - (int)start.y);
+    std::string s1 = std::to_string((int)finish.x - (int)start.x), s2 = std::to_string((int)finish.y - (int)start.y);
     std::string trace = 
     "- { type: " + type + ", tag: ray" + ", color: "+ color + 
     ", x: " + std::to_string(start.x) + ", y: " + std::to_string(start.y) + 
@@ -69,7 +69,7 @@ void Tracer::draw_bounds(point p, direction_id dir)
     trace_ray_till_close(p, p, yend, "red", "y boundary");
 }
 
-void Tracer::trace_ray_till_close(point closeid, point start, point finish, string color, string type)
+void Tracer::trace_ray_till_close(point closeid, point start, point finish, std::string color, std::string type)
 {
     if (adj_for_padding)
     {
@@ -77,7 +77,7 @@ void Tracer::trace_ray_till_close(point closeid, point start, point finish, stri
         start.y-=3;
         finish.y-=3;
     }
-    string s1 = std::to_string((int)finish.x - (int)start.x), s2 = std::to_string((int)finish.y - (int)start.y);
+    std::string s1 = std::to_string((int)finish.x - (int)start.x), s2 = std::to_string((int)finish.y - (int)start.y);
     std::string trace = 
     "- { type: " + type + ", tag: tempRay" + ", color: "+ color + 
     ", id: " + std::to_string(closeid.x) + ":" + std::to_string(closeid.y) + 
@@ -135,7 +135,7 @@ void Tracer::init(point start, point finish)
     "      $if: ${{ $.tag == 'ray'|| $.tag == 'tempRay'}}\n"
     "events:\n";
     m_trace << header;
-    string type;
+    std::string type;
     type = "source";
     m_trace << "- { type: " << type << ", tag: grid"<< ", color: green" << ", id: " << std::to_string(start.x) + ":" + std::to_string(start.y) << ", x: " << start.x << ", y: " << sy << "}\n";
     type = "destination";

@@ -48,9 +48,9 @@ struct search_node
     double          gval = 0;
     double          hval = DBL_MAX;
     boost::heap::pairing_heap<search_node>::handle_type handle;
-    const inline std::string get_key()
+    const inline uint64_t get_key()
     {
-        return std::string(std::to_string((uint64_t)state.id) +':'+ std::to_string(state.dir));
+        return static_cast<uint64_t>(state.id) + (static_cast<uint64_t>(state.dir) << 32);
     }
     search_node(rjps_state _state) : state(_state){};
     search_node(){};
@@ -282,70 +282,78 @@ inline constexpr bool horizontally_bound(Octants O)
 // SOUTHEAST_ID 2
 // SOUTHWEST_ID 3
 // 0:vert, 1:hori
-static constexpr std::array<std::array<direction_id, 2>, 4>d_init_scan_CW{{
+inline constexpr std::array<std::array<direction_id, 2>, 4>d_init_scan_CW{{
 {SOUTH_ID, EAST_ID}, 
 {NORTH_ID, EAST_ID}, 
 {SOUTH_ID, WEST_ID}, 
-{NORTH_ID, WEST_ID}}};
+{NORTH_ID, WEST_ID}
+}};
 // NORTHEAST_ID 0
 // NORTHWEST_ID 1
 // SOUTHEAST_ID 2
 // SOUTHWEST_ID 3
 // 0:vert, 1:hori
-static constexpr std::array<std::array<direction_id, 2>, 4>d_init_scan_CCW{{
+inline constexpr std::array<std::array<direction_id, 2>, 4>d_init_scan_CCW{{
 {NORTH_ID, WEST_ID}, 
 {SOUTH_ID, WEST_ID}, 
 {NORTH_ID, EAST_ID},
-{SOUTH_ID, EAST_ID}}};
+{SOUTH_ID, EAST_ID}
+}};
 // NORTHEAST_ID 0
 // NORTHWEST_ID 1
 // SOUTHEAST_ID 2
 // SOUTHWEST_ID 3
 // 0:CW, 1:CCW
 // direction of jps scan based on scan quadrant and scan orientation
-static constexpr std::array<std::array<direction_id, 2>, 4>d_jps{{
+inline constexpr std::array<std::array<direction_id, 2>, 4>d_jps{{
 {EAST_ID, NORTH_ID}, 
 {NORTH_ID, WEST_ID}, 
 {SOUTH_ID, EAST_ID}, 
-{WEST_ID, SOUTH_ID}}};
+{WEST_ID, SOUTH_ID}
+}};
 // NORTHEAST_ID 0
 // NORTHWEST_ID 1
 // SOUTHEAST_ID 2
 // SOUTHWEST_ID 3
 // 0:CW, 1:CCW
-static constexpr std::array<std::array<direction_id, 2>, 4>d_scan{{
+inline constexpr std::array<std::array<direction_id, 2>, 4>d_scan{{
 {SOUTH_ID, WEST_ID}, 
 {EAST_ID, SOUTH_ID}, 
 {WEST_ID, NORTH_ID}, 
-{NORTH_ID, EAST_ID}}};
+{NORTH_ID, EAST_ID}
+}};
 
-static inline int get_succ_sector(direction_id parent_s, direction_id jps, bool top)
+inline uint32_t get_succ_sector(direction_id parent_s, direction_id jps, bool top)
 {
-    return ((int)top <<20 |(int) parent_s <<10 | (int)jps);
+    assert(is_intercardinal_id(parent_s) && (dir_intercardinal_hori(parent_s)==jps || dir_intercardinal_vert(parent_s)==jps));
+    return (((uint32_t)parent_s - 4) << 2) |
+           ((uint32_t)(dir_intercardinal_hori(parent_s) == jps) << 1) |
+           (uint32_t)top;
+    // return ((int)top <<20 |(int) parent_s <<10 | (int)jps);
 }
 
-using namespace std;
-static const std::unordered_map<int, direction_id>quad{
-    {get_succ_sector(NORTHEAST_ID, NORTH_ID, true),  NORTHWEST_ID},
-    {get_succ_sector(NORTHEAST_ID, NORTH_ID, false), NORTHEAST_ID},
-    {get_succ_sector(NORTHEAST_ID, EAST_ID, true),  NORTHEAST_ID},
-    {get_succ_sector(NORTHEAST_ID, EAST_ID, false),  SOUTHEAST_ID},
+// is like direction_id[d1=4][d2=2][top=2], d1 is parent_s, d2=is_hori, top is top
+inline constexpr std::array<direction_id, 16>quad{{
+    NORTHWEST_ID, // {get_succ_sector(NORTHEAST_ID, NORTH_ID, true),  NORTHWEST_ID},
+    NORTHEAST_ID, // {get_succ_sector(NORTHEAST_ID, NORTH_ID, false), NORTHEAST_ID},
+    NORTHEAST_ID, // {get_succ_sector(NORTHEAST_ID, EAST_ID, true),  NORTHEAST_ID},
+    SOUTHEAST_ID, // {get_succ_sector(NORTHEAST_ID, EAST_ID, false),  SOUTHEAST_ID},
 
-    {get_succ_sector(NORTHWEST_ID, NORTH_ID, true),  NORTHWEST_ID},
-    {get_succ_sector(NORTHWEST_ID, NORTH_ID, false), NORTHEAST_ID},
-    {get_succ_sector(NORTHWEST_ID, WEST_ID, true),  NORTHWEST_ID},
-    {get_succ_sector(NORTHWEST_ID, WEST_ID, false),  SOUTHWEST_ID},
+    NORTHWEST_ID, // {get_succ_sector(NORTHWEST_ID, NORTH_ID, true),  NORTHWEST_ID},
+    NORTHEAST_ID, // {get_succ_sector(NORTHWEST_ID, NORTH_ID, false), NORTHEAST_ID},
+    NORTHWEST_ID, // {get_succ_sector(NORTHWEST_ID, WEST_ID, true),  NORTHWEST_ID},
+    SOUTHWEST_ID, // {get_succ_sector(NORTHWEST_ID, WEST_ID, false),  SOUTHWEST_ID},
 
-    {get_succ_sector(SOUTHEAST_ID, SOUTH_ID, true),  SOUTHWEST_ID},
-    {get_succ_sector(SOUTHEAST_ID, SOUTH_ID, false), SOUTHEAST_ID},
-    {get_succ_sector(SOUTHEAST_ID, EAST_ID, true),  NORTHEAST_ID},
-    {get_succ_sector(SOUTHEAST_ID, EAST_ID, false),  SOUTHEAST_ID},
+    SOUTHWEST_ID, // {get_succ_sector(SOUTHEAST_ID, SOUTH_ID, true),  SOUTHWEST_ID},
+    SOUTHEAST_ID, // {get_succ_sector(SOUTHEAST_ID, SOUTH_ID, false), SOUTHEAST_ID},
+    NORTHEAST_ID, // {get_succ_sector(SOUTHEAST_ID, EAST_ID, true),  NORTHEAST_ID},
+    SOUTHEAST_ID, // {get_succ_sector(SOUTHEAST_ID, EAST_ID, false),  SOUTHEAST_ID},
 
-    {get_succ_sector(SOUTHWEST_ID, SOUTH_ID, true),  SOUTHWEST_ID},
-    {get_succ_sector(SOUTHWEST_ID, SOUTH_ID, false), SOUTHEAST_ID},
-    {get_succ_sector(SOUTHWEST_ID, WEST_ID, true),  NORTHWEST_ID},
-    {get_succ_sector(SOUTHWEST_ID, WEST_ID, false),  SOUTHWEST_ID}
-};
+    SOUTHWEST_ID, // {get_succ_sector(SOUTHWEST_ID, SOUTH_ID, true),  SOUTHWEST_ID},
+    SOUTHEAST_ID, // {get_succ_sector(SOUTHWEST_ID, SOUTH_ID, false), SOUTHEAST_ID},
+    NORTHWEST_ID, // {get_succ_sector(SOUTHWEST_ID, WEST_ID, true),  NORTHWEST_ID},
+    SOUTHWEST_ID, // {get_succ_sector(SOUTHWEST_ID, WEST_ID, false),  SOUTHWEST_ID}
+}};
 
 // NORTHEAST_ID 0
 // NORTHWEST_ID 1
@@ -353,10 +361,11 @@ static const std::unordered_map<int, direction_id>quad{
 // SOUTHWEST_ID 3
 // 0:x  1:y
 static constexpr std::array<point, 4> adj{{
-{1, (uint16_t)-1},
-{(uint16_t)-1, (uint16_t)-1},
-{1, 1},
-{(uint16_t)-1, 1}}};
+{1u, (uint16_t)-1u},
+{(uint16_t)-1u, (uint16_t)-1u},
+{1u, 1u},
+{(uint16_t)-1u, 1u}
+}};
 
 // NORTHEAST_ID 0
 // NORTHWEST_ID 1
@@ -367,7 +376,8 @@ static constexpr std::array<std::array<bool, 2>, 4> init_scan_top{{
 {false, true},
 {true, true},
 {false, false},
-{true, false}}};
+{true, false}
+}};
 
 //check if i is inbtween a and b, doesnt matter a or b is larger or smaller
 static inline bool between2(uint32_t i, uint32_t a, uint32_t b)
@@ -392,34 +402,7 @@ static inline void maskzero(uint64_t &num, uint32_t offset)
 //return JPS_ID after mooving from a JPS_ID n moves in direction d
 static inline grid_id shift_in_dir(grid_id id, uint32_t n_moves, direction_id d, gridmap::bittable m)
 {
-    switch (d)
-    {        
-    default:
-    case direction_id::EAST_ID:
-        return grid_id(id.id + n_moves);
-        break;
-    case direction_id::WEST_ID:
-        return grid_id(id.id - n_moves);
-        break;        
-    case direction_id::NORTH_ID:
-        return grid_id(id.id - n_moves * m.width());
-        break;
-    case direction_id::SOUTH_ID:
-        return grid_id(id.id + n_moves * m.width());
-        break;
-    case direction_id::NORTHEAST_ID:
-        return grid_id((id.id - n_moves * m.width()) + n_moves);
-        break;
-    case direction_id::NORTHWEST_ID:
-        return grid_id((id.id - n_moves * m.width()) - n_moves);            
-        break;
-    case direction_id::SOUTHEAST_ID:
-        return grid_id((id.id + n_moves * m.width()) + n_moves);            
-        break;
-    case direction_id::SOUTHWEST_ID:
-        return grid_id((id.id + n_moves * m.width()) - n_moves);            
-        break;
-    }
+    return grid_id(id.id + warthog::grid::dir_id_adj(d, m.width()) * n_moves);
 }
 
 static void printEastScan(uint64_t i)
@@ -440,59 +423,30 @@ static void printWestScan(uint64_t i)
 template<ScanAttribute::Orientation O>
 direction_id rotate_eighth(direction_id in_dir)
 {
-    auto d = direction_id{};
+    static_assert(O == ScanAttribute::CCW || O == ScanAttribute::CW, "O must be CW|CCW");
     if constexpr (O == ScanAttribute::CCW)
     {
-        switch (in_dir)
-        {
-        case NORTHEAST_ID:
-            d = NORTH_ID;
-            break;
-        case NORTHWEST_ID:
-            d = WEST_ID;
-            break;
-        case SOUTHEAST_ID:
-            d = EAST_ID;
-            break;
-        case SOUTHWEST_ID:
-            d = SOUTH_ID;
-            break;
-        }
+        return warthog::grid::dir_id_ccw45(in_dir);
     }
-    else if constexpr (O == ScanAttribute::CW)
+    else // if constexpr (O == ScanAttribute::CCW)
     {
-        switch (in_dir)
-        {
-        case NORTHEAST_ID:
-            d = EAST_ID;
-            break;
-        case NORTHWEST_ID:
-            d = NORTH_ID;
-            break;
-        case SOUTHEAST_ID:
-            d = SOUTH_ID;
-            break;
-        case SOUTHWEST_ID:
-            d = WEST_ID;
-            break;
-        }
+        return warthog::grid::dir_id_cw45(in_dir);
     }
-    return d;
 }
 
-//if d1 and d2 are in d set of: {E, W} OR {N, S}
-static inline bool EW_or_NS(direction_id d1, direction_id d2)
-{
-    auto c = uint8_t{0};
-    c |= d1; c |= d2;
-    return d1 == d2 || c == 12 || c == 3;
-}
+// //if d1 and d2 are in d set of: {E, W} OR {N, S}
+// static inline bool EW_or_NS(direction_id d1, direction_id d2)
+// {
+//     auto c = uint8_t{0};
+//     c |= d1; c |= d2;
+//     return d1 == d2 || c == 12 || c == 3;
+// }
 
 //if d1 and d2 are in different d set of: {E, N}, {W, S}
 static inline bool EN_diff_WS(direction_id d1, direction_id d2)
 {
-    uint8_t a = std::countr_zero(static_cast<uint8_t>(d1));
-    uint8_t b = std::countr_zero(static_cast<uint8_t>(d2));
+    uint8_t a = static_cast<uint8_t>(d1);
+    uint8_t b = static_cast<uint8_t>(d2);
     return (std::max(a, b) - std::min(a, b)) != 2;
 }
 

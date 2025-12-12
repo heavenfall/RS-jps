@@ -76,7 +76,7 @@ private:
     experiment_result                   m_stats;
     warthog::util::timer                m_timer;
     std::vector<rjps_state>             m_succ;
-    std::unordered_map<string, search_node> m_all_node_list;
+    std::unordered_map<uint64_t, search_node> m_all_node_list;
     boost::heap::pairing_heap<search_node> m_pq;
 
     void expand_node(search_node n);
@@ -130,9 +130,9 @@ void Solver<ST>::expand(search_node cur)
     if constexpr(ST == SolverTraits::OutputToPosthoc)
     {
         m_tracer->expand(cur_coord, "orange", 
-            "expanding, h: " + to_string(cur.hval) +
-            " ,g: " + to_string(cur.gval) + 
-            " ,f: "+ to_string(cur.gval + cur.hval));
+            "expanding, h: " + std::to_string(cur.hval) +
+            " ,g: " + std::to_string(cur.gval) + 
+            " ,f: "+ std::to_string(cur.gval + cur.hval));
         m_tracer->draw_bounds(cur_coord, cur.state.dir);
     }
     m_succ.clear();
@@ -382,7 +382,7 @@ grid_id Solver<ST>::grid_ray_incident(grid_id from, grid_id to, direction_id d)
 {
     auto f_coord = m_map.id_to_point(from), t_coord = m_map.id_to_point(to);
     auto diff_coord = point_signed_diff(f_coord, t_coord);
-    auto m = std::min(abs(diff_coord.first), abs(diff_coord.second));
+    auto m = std::min(std::abs(diff_coord.first), std::abs(diff_coord.second));
     return shift_in_dir(from, m, d, m_map.table());
 }
 
@@ -450,10 +450,10 @@ void Solver<ST>::insert(rjps_state succ, search_node *pred)
         if constexpr(ST == SolverTraits::OutputToPosthoc)
         {
         m_tracer->expand(m_map.id_to_point(n.state.id), "fuchsia", 
-            "generating, h: " + to_string(n.hval) +
-            " ,g: " + to_string(n.gval) + 
-            " ,f: "+ to_string(n.gval + n.hval) + 
-            " ,dir:" + to_string(n.state.dir));
+            "generating, h: " + std::to_string(n.hval) +
+            " ,g: " + std::to_string(n.gval) + 
+            " ,f: "+ std::to_string(n.gval + n.hval) + 
+            " ,dir:" + std::to_string(n.state.dir));
         }
         boost::heap::pairing_heap<search_node>::handle_type h = m_pq.push(n);
         (*h).handle = h;
@@ -475,10 +475,10 @@ void Solver<ST>::insert(rjps_state succ, search_node *pred)
                 if constexpr(ST == SolverTraits::OutputToPosthoc)
                 {
                 m_tracer->expand(m_map.id_to_point(n.state.id), "red", 
-                    "re-opening, h: " + to_string(n.hval) +
-                    " ,g: " + to_string(n.gval) + 
-                    " ,f: "+ to_string(n.gval + n.hval) + 
-                    " ,dir:" + to_string(n.state.dir));
+                    "re-opening, h: " + std::to_string(n.hval) +
+                    " ,g: " + std::to_string(n.gval) + 
+                    " ,f: "+ std::to_string(n.gval + n.hval) + 
+                    " ,dir:" + std::to_string(n.state.dir));
                 }
                 // assert(false && "reopeing not handled");
             }
@@ -491,10 +491,10 @@ void Solver<ST>::insert(rjps_state succ, search_node *pred)
                 if constexpr(ST == SolverTraits::OutputToPosthoc)
                 {
                 m_tracer->expand(m_map.id_to_point(n.state.id), "yellow", 
-                    "updating, h: " + to_string(n.hval) +
-                    " ,g: " + to_string(n.gval) + 
-                    " ,f: "+ to_string(n.gval + n.hval) + 
-                    " ,dir:" + to_string(n.state.dir));
+                    "updating, h: " + std::to_string(n.hval) +
+                    " ,g: " + std::to_string(n.gval) + 
+                    " ,f: "+ std::to_string(n.gval + n.hval) + 
+                    " ,dir:" + std::to_string(n.state.dir));
                 }
                 m_pq.decrease(e.handle, n);
             }
@@ -508,7 +508,7 @@ inline void Solver<ST>::insert_start_state(const rjps_state& succ)
     auto n = search_node{succ};
     n.gval = 0;
     n.hval = interval_h(succ);
-    auto key = std::string(to_string((uint64_t)n.state.id) + to_string(n.state.dir));
+    // auto key = std::string(std::to_string((uint64_t)n.state.id) + std::to_string(n.state.dir));
 
     boost::heap::pairing_heap<search_node>::handle_type h = m_pq.push(n);
     (*h).handle = h;

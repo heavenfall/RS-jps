@@ -273,20 +273,20 @@ inline jump::jump_distance Ray::jump_cardinal(direction_id d, grid_id id)
 template<SolverTraits ST>
 grid_id Ray::shoot_rjps_ray(grid_id start, direction_id d, std::vector<rjps_state> &succ)
 {
-    const uint32_t idadj = dir_id_adj(d, m_map.width());
+    const uint32_t idadj = grid::dir_id_adj(d, m_map.width());
     auto dist = jump_cardinal(d, start);
     grid_id ret = start;
-    ret.id += idadj * static_cast<uint32_t>(dist);
+    ret.id += idadj * static_cast<uint32_t>(std::abs(dist));
     if constexpr(ST == SolverTraits::OutputToPosthoc) m_tracer->trace_ray(m_map.id_to_point(start), m_map.id_to_point(ret), "green", "jps ray");
     while (dist > 0)
     {
         //at this point, d is the direction of jps when pushed onto the vector, the scan quadrant will be updated at the end of scanning the parent's quadrant
         // succ.emplace_back(ret.second, nullptr, m_map.id_to_point(ret.second), d);
-        auto n = rjps_state{ret};
+        auto n = rjps_state(ret);
         //cache the jps direction the succ is found, used for generating the succ search node
         succ.emplace_back(ret, d);
         dist = jump_cardinal(d, ret);
-        ret.id += idadj * static_cast<uint32_t>(dist);
+        ret.id += idadj * static_cast<uint32_t>(std::abs(dist));
         if constexpr(ST == SolverTraits::OutputToPosthoc) 
         {
             auto r = m_map.id_to_point(ret);
@@ -299,10 +299,10 @@ grid_id Ray::shoot_rjps_ray(grid_id start, direction_id d, std::vector<rjps_stat
 template<SolverTraits ST>
 grid_id Ray::shoot_rjps_ray_to_target(grid_id start, grid_id target, direction_id d, std::vector<rjps_state> &succ)
 {
-    const uint32_t idadj = dir_id_adj(d, m_map.width());
+    const uint32_t idadj = grid::dir_id_adj(d, m_map.width());
     auto dist = jump_cardinal(d, start);
     grid_id ret = start;
-    ret.id += idadj * static_cast<uint32_t>(dist);
+    ret.id += idadj * static_cast<uint32_t>(std::abs(dist));
     if constexpr(ST == SolverTraits::OutputToPosthoc) m_tracer->trace_ray(m_map.id_to_point(start), m_map.id_to_point(ret), "green", "jps ray");
     while (dist > 0)
     {
@@ -317,17 +317,7 @@ grid_id Ray::shoot_rjps_ray_to_target(grid_id start, grid_id target, direction_i
         else
         {
             dist = jump_cardinal(d, ret);
-            if (dist <= 0)
-            {
-                ret.id += idadj * static_cast<uint32_t>(-dist);
-                if constexpr(ST == SolverTraits::OutputToPosthoc) 
-                {
-                    auto r = m_map.id_to_point(ret);
-                    m_tracer->trace_ray(r, m_map.id_to_point(ret), "green", "jps ray");
-                }
-                return ret;
-            }
-            ret.id += idadj * static_cast<uint32_t>(dist);
+            ret.id += idadj * static_cast<uint32_t>(std::abs(dist));
             if constexpr(ST == SolverTraits::OutputToPosthoc) 
             {
                 auto r = m_map.id_to_point(ret);

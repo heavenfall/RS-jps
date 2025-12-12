@@ -249,9 +249,9 @@ bool Scanner::init_scan_eastwest(grid_id& start, direction_id in_dir)
     {
         direction_id dd = (in_dir == SOUTHEAST_ID || in_dir == SOUTHWEST_ID) ? SOUTH_ID : NORTH_ID;
         start = shift_in_dir(start, 1, dd, m_map.table());//lol
-        std::cout<<"shift ";
-        if(dd == NORTH_ID) std::cout<<"north\n";
-        else if(dd == SOUTH_ID) std::cout<<"south\n";
+        // std::cout<<"shift ";
+        // if(dd == NORTH_ID) std::cout<<"north\n";
+        // else if(dd == SOUTH_ID) std::cout<<"south\n";
         return false;
     }
     return(e && w);
