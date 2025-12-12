@@ -46,7 +46,26 @@ public:
     std::vector<grid_id> test_scan_full(grid_id start, uint32_t bx, uint32_t by);
     uint32_t test_scan_single(grid_id start, bool top, char c);
     
-    double vecangle(grid_id o, grid_id a, grid_id b);
+    // double vecangle(grid_id o, grid_id a, grid_id b);
+    static constexpr int32_t cross(point o, point a, point b) ///< use with is_cw, is_ccw, is_colin
+    {
+        auto da = point_signed_diff(o, a);
+        auto db = point_signed_diff(o, a);
+        // x1y2 - x2y1
+        return db.first * da.second - da.first * db.second;
+    }
+    static constexpr bool is_cw(int32_t crs) ///< cross result a to b around o is cw
+    {
+        return crs > 0;
+    }
+    static constexpr bool is_ccw(int32_t crs) ///< cross result a to b around o is ccw
+    {
+        return crs < 0;
+    }
+    static constexpr bool is_colin(int32_t crs) ///< cross result a, b, and o are on same line (colin)
+    {
+        return crs == 0;
+    }
 
     uint32_t m_bx;  //x coord of the bounding box
     uint32_t m_by;  //y coord of the bounding box
@@ -149,25 +168,29 @@ void Scanner::scan(grid_id parent, grid_id first, grid_id &ret)
     res.d = SOUTH_ID;
     res.top = true;
     second = scan_obstacle(first, res);
-    double angle = vecangle(parent, first, second);
+    point po = m_map.id_to_point(parent);
+    point pa = m_map.id_to_point(first);
+    point pb = m_map.id_to_point(second);
     if constexpr (o == ScanAttribute::CCW) 
     {
-        while (angle <= 0)
-        {
-            first = second;
-            second = scan_obstacle(first, res);          
-            angle = vecangle(parent, first, second);
-        } 
-    }
-    else if constexpr (o == ScanAttribute::CW) 
-    {
-        while (angle >= 0)
+        while (is_ccw(cross(po, pa, pb)))
         {
             first = second;
             second = scan_obstacle(first, res);
-            angle = vecangle(parent, first, second);
-        } 
-    }      
+            pa = pb;
+            pb = m_map.id_to_point(second);
+        }
+    }
+    else if constexpr (o == ScanAttribute::CW)
+    {
+        while (is_cw(cross(po, pa, pb)))
+        {
+            first = second;
+            second = scan_obstacle(first, res);
+            pa = pb;
+            pb = m_map.id_to_point(second);
+        }
+    }
     ret = first;
 }
 

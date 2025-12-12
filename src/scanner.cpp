@@ -220,18 +220,17 @@ uint32_t Scanner::test_scan_single(grid_id start, bool top, char c)
     }
 }
 
-// TODO: look at changing this into vector angles
-double Scanner::vecangle(grid_id _o, grid_id _a, grid_id _b)
-{
-    auto o = m_map.id_to_point(_o);
-    auto a = m_map.id_to_point(_a);
-    auto b = m_map.id_to_point(_b);
-    auto oa = point_signed_diff(a, o);
-    auto ob = point_signed_diff(b, o);
-    double cross = (oa.first * ob.second - oa.second * ob.first);
-    double dot = (oa.first * ob.first + oa.second * ob.second); 
-    return std::atan2(cross, dot) * (180.0/3.141592653589793238463);
-}
+// double Scanner::vecangle(grid_id _o, grid_id _a, grid_id _b)
+// {
+//     auto o = m_map.id_to_point(_o);
+//     auto a = m_map.id_to_point(_a);
+//     auto b = m_map.id_to_point(_b);
+//     auto oa = point_signed_diff(a, o);
+//     auto ob = point_signed_diff(b, o);
+//     double cross = (oa.first * ob.second - oa.second * ob.first);
+//     double dot = (oa.first * ob.first + oa.second * ob.second); 
+//     return std::atan2(cross, dot) * (180.0/3.141592653589793238463);
+// }
 
 bool Scanner::init_scan_eastwest(grid_id& start, direction_id in_dir)
 {
