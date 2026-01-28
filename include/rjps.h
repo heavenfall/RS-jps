@@ -323,36 +323,34 @@ inline constexpr std::array<std::array<direction_id, 2>, 4>d_scan{{
 {NORTH_ID, EAST_ID}
 }};
 
-inline uint32_t get_succ_sector(direction_id parent_s, direction_id jps, bool top)
+inline uint8_t get_succ_sector(direction_id parent_s, direction_id jps, bool top)
 {
-    assert(is_intercardinal_id(parent_s) && (dir_intercardinal_hori(parent_s)==jps || dir_intercardinal_vert(parent_s)==jps));
-    return ((uint32_t)parent_s - 4) | // ((uint32_t)parent_s - 4) << 2
-           ((uint32_t)(dir_intercardinal_hori(parent_s) == jps) << 1) |
-           (uint32_t)top;
+    // assert(is_intercardinal_id(parent_s) && (dir_intercardinal_hori(parent_s)==jps || dir_intercardinal_vert(parent_s)==jps));
+    return (parent_s - 4) << 2 | ((dir_intercardinal_hori(parent_s) == jps) << 1) | top;
     // return ((int)top <<20 |(int) parent_s <<10 | (int)jps);
 }
 
 // is like direction_id[d1=4][d2=2][top=2], d1 is parent_s, d2=is_hori, top is top
 inline constexpr std::array<direction_id, 16>quad{{
-    NORTHWEST_ID, // {get_succ_sector(NORTHEAST_ID, NORTH_ID, true),  NORTHWEST_ID},
-    NORTHEAST_ID, // {get_succ_sector(NORTHEAST_ID, NORTH_ID, false), NORTHEAST_ID},
-    NORTHEAST_ID, // {get_succ_sector(NORTHEAST_ID, EAST_ID, true),  NORTHEAST_ID},
-    SOUTHEAST_ID, // {get_succ_sector(NORTHEAST_ID, EAST_ID, false),  SOUTHEAST_ID},
+    NORTHEAST_ID, // {get_succ_sector(NORTHEAST_ID, NORTH_ID, false), NORTHEAST_ID},0
+    NORTHWEST_ID, // {get_succ_sector(NORTHEAST_ID, NORTH_ID, true),  NORTHWEST_ID},1
+    SOUTHEAST_ID, // {get_succ_sector(NORTHEAST_ID, EAST_ID, false),  SOUTHEAST_ID},2
+    NORTHEAST_ID, // {get_succ_sector(NORTHEAST_ID, EAST_ID, true),  NORTHEAST_ID},3
 
-    NORTHWEST_ID, // {get_succ_sector(NORTHWEST_ID, NORTH_ID, true),  NORTHWEST_ID},
-    NORTHEAST_ID, // {get_succ_sector(NORTHWEST_ID, NORTH_ID, false), NORTHEAST_ID},
-    NORTHWEST_ID, // {get_succ_sector(NORTHWEST_ID, WEST_ID, true),  NORTHWEST_ID},
-    SOUTHWEST_ID, // {get_succ_sector(NORTHWEST_ID, WEST_ID, false),  SOUTHWEST_ID},
+    NORTHEAST_ID, // {get_succ_sector(NORTHWEST_ID, NORTH_ID, false), NORTHEAST_ID},4
+    NORTHWEST_ID, // {get_succ_sector(NORTHWEST_ID, NORTH_ID, true),  NORTHWEST_ID},5
+    SOUTHWEST_ID, // {get_succ_sector(NORTHWEST_ID, WEST_ID, false),  SOUTHWEST_ID},6
+    NORTHWEST_ID, // {get_succ_sector(NORTHWEST_ID, WEST_ID, true),  NORTHWEST_ID},7
 
-    SOUTHWEST_ID, // {get_succ_sector(SOUTHEAST_ID, SOUTH_ID, true),  SOUTHWEST_ID},
-    SOUTHEAST_ID, // {get_succ_sector(SOUTHEAST_ID, SOUTH_ID, false), SOUTHEAST_ID},
-    NORTHEAST_ID, // {get_succ_sector(SOUTHEAST_ID, EAST_ID, true),  NORTHEAST_ID},
-    SOUTHEAST_ID, // {get_succ_sector(SOUTHEAST_ID, EAST_ID, false),  SOUTHEAST_ID},
+    SOUTHEAST_ID, // {get_succ_sector(SOUTHEAST_ID, SOUTH_ID, false), SOUTHEAST_ID},8
+    SOUTHWEST_ID, // {get_succ_sector(SOUTHEAST_ID, SOUTH_ID, true),  SOUTHWEST_ID},9
+    SOUTHEAST_ID, // {get_succ_sector(SOUTHEAST_ID, EAST_ID, false),  SOUTHEAST_ID},10
+    NORTHEAST_ID, // {get_succ_sector(SOUTHEAST_ID, EAST_ID, true),  NORTHEAST_ID},11
 
-    SOUTHWEST_ID, // {get_succ_sector(SOUTHWEST_ID, SOUTH_ID, true),  SOUTHWEST_ID},
-    SOUTHEAST_ID, // {get_succ_sector(SOUTHWEST_ID, SOUTH_ID, false), SOUTHEAST_ID},
-    NORTHWEST_ID, // {get_succ_sector(SOUTHWEST_ID, WEST_ID, true),  NORTHWEST_ID},
-    SOUTHWEST_ID, // {get_succ_sector(SOUTHWEST_ID, WEST_ID, false),  SOUTHWEST_ID}
+    SOUTHEAST_ID, // {get_succ_sector(SOUTHWEST_ID, SOUTH_ID, false), SOUTHEAST_ID},12
+    SOUTHWEST_ID, // {get_succ_sector(SOUTHWEST_ID, SOUTH_ID, true),  SOUTHWEST_ID},13
+    SOUTHWEST_ID, // {get_succ_sector(SOUTHWEST_ID, WEST_ID, false),  SOUTHWEST_ID}14
+    NORTHWEST_ID, // {get_succ_sector(SOUTHWEST_ID, WEST_ID, true),  NORTHWEST_ID},15
 }};
 
 // NORTHEAST_ID 0

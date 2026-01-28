@@ -8,7 +8,7 @@ void Tracer::expand(uint32_t x, uint32_t y, std::string color, std::string type)
 void Tracer::expand(point p, std::string color, std::string type)
 {
     auto x = uint32_t{p.x}, y = uint32_t{p.y};  
-    if (adj_for_padding)
+    if (adj_for_padding && y >= 3)
     {
         y-=3;
     }
@@ -21,7 +21,7 @@ void Tracer::expand(point p, std::string color, std::string type)
 void Tracer::draw_cell(point p, std::string color, std::string type)
 {
     auto x = uint32_t{p.x}, y = uint32_t{p.y};  
-    if (adj_for_padding)
+    if (adj_for_padding && y >= 3)
     {
         y-=3;
     }
@@ -35,7 +35,7 @@ void Tracer::draw_cell(point p, std::string color, std::string type)
 void Tracer::close_node(point p)
 {
     auto x = uint32_t{p.x}, y = uint32_t{p.y};  
-    if (adj_for_padding)
+    if (adj_for_padding && y >= 3)
     {
         y-=3;
     }
@@ -50,8 +50,8 @@ void Tracer::trace_ray(point start, point finish, std::string color, std::string
 {
     if (adj_for_padding)
     {
-        start.y-=3;
-        finish.y-=3;
+        if(start.y>=3) start.y-=3;
+        if(finish.y>=3) finish.y-=3;
     }
     std::string s1 = std::to_string((int)finish.x - (int)start.x), s2 = std::to_string((int)finish.y - (int)start.y);
     std::string trace = 
@@ -63,19 +63,19 @@ void Tracer::trace_ray(point start, point finish, std::string color, std::string
 
 void Tracer::draw_bounds(point p, direction_id dir)
 {
-    auto xend = point(p.x, adj[(int)dir-4].y == (int16_t)-1 ? 0 : m_dim.height);
-    auto yend = point(adj[(int)dir-4].x == (int16_t)-1 ? 0 : m_dim.width, p.y);
-    trace_ray_till_close(p, p, xend, "red", "x boundary");
-    trace_ray_till_close(p, p, yend, "red", "y boundary");
+    auto vertBound = point(p.x, (dir == NORTHEAST_ID || dir == NORTHWEST_ID) ? 0 : m_dim.height);
+    auto horiBound = point((dir == SOUTHWEST_ID || dir == NORTHWEST_ID) ? 0 : m_dim.width, p.y);
+    trace_ray_till_close(p, p, vertBound, "red", "vert boundary");
+    trace_ray_till_close(p, p, horiBound, "red", "hori boundary");
 }
 
 void Tracer::trace_ray_till_close(point closeid, point start, point finish, std::string color, std::string type)
 {
     if (adj_for_padding)
     {
-        closeid.y-=3;
-        start.y-=3;
-        finish.y-=3;
+        if(closeid.y>=3) closeid.y-=3;
+        if(start.y>=3) start.y-=3;
+        if(finish.y>=3) finish.y-=3;
     }
     std::string s1 = std::to_string((int)finish.x - (int)start.x), s2 = std::to_string((int)finish.y - (int)start.y);
     std::string trace = 
@@ -92,7 +92,8 @@ void Tracer::init(point start, point finish)
     auto sy = uint32_t{start.y}, fy = uint32_t{finish.y};    
     if (adj_for_padding)
     {
-        sy-=3; fy-=3;
+        if(sy>=3) sy-=3; 
+        if(fy>=3) fy-=3;
     }
     std::string header = 
     "version: 1.4.0\n"
