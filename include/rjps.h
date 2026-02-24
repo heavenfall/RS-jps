@@ -34,6 +34,11 @@ struct rjps_state
     grid_id      id = grid_id::none();
     direction_id   dir = {};
     // direction_id   quad_mask = {};
+    constexpr uint32_t key() const noexcept
+    {
+        assert(is_intercardinal_id(dir));
+        return ((uint32_t)id.id << 2) | ((uint32_t)dir & 0b011u);
+    }
 
     rjps_state(grid_id _v) : id(_v){};
     rjps_state(grid_id _v, direction_id _d) : id(_v), dir(_d){};
@@ -42,18 +47,29 @@ struct rjps_state
 
 struct search_node
 {
+    uint64_t        search_id = 0;
     rjps_state      state;
+    bool            opend  = false;
     bool            closed = false;
     search_node*    parent = nullptr;
-    double          gval = 0;
-    double          hval = DBL_MAX;
+    double          gval = DBL_MAX;
+    double          hval = 0;
     boost::heap::pairing_heap<search_node>::handle_type handle;
     const inline uint64_t get_key()
     {
-        return static_cast<uint64_t>(state.id) + (static_cast<uint64_t>(state.dir) << 32);
+        return state.key();
     }
+    search_node() = default;
     search_node(rjps_state _state) : state(_state){};
-    search_node(){};
+    
+    void reset() noexcept
+    {
+        opend  = false;
+        closed = false;
+        parent = nullptr;
+        gval = DBL_MAX;
+        hval = 0;
+    }
 
     //WARNING: < is set to > for min-heap, not for comparisons
     bool operator<( search_node const& rhs ) const

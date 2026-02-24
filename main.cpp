@@ -62,7 +62,19 @@ static const double EPSILON = 0.000001f;
 template <bool Test>
 void run_scenario(warthog::util::scenario_manager &scen_mngr, string mapname)
 {
-    warthog::domain::gridmap map(mapname.c_str());
+    auto orig_map = std::make_unique<warthog::domain::gridmap>(mapname.c_str());
+    // pad the top and left side of the map to bug fix
+    warthog::domain::gridmap map(orig_map->header_height() + 1, orig_map->header_width() + 1);
+    for (uint32_t y = 0, ye = orig_map->header_height(), xe = orig_map->header_width(); y < ye; ++y) {
+        pad_id oid = orig_map->to_padded_id_from_unpadded(0, y);
+        pad_id nid = map.to_padded_id_from_unpadded(1, y+1); // (+1,+1) shift
+        for (uint32_t x = 0; x < xe; ++x) {
+            map.bit_or(nid, orig_map->get(oid));
+            oid.id++;
+            nid.id++;
+        }
+    }
+    orig_map = nullptr; // free up memory
     jps::domain::rotate_gridmap rmap(map);
     jps::jump::jump_point_online jps(rmap);
     auto s = Solver<SolverTraits::Default>(&jps, rmap);
@@ -71,8 +83,8 @@ void run_scenario(warthog::util::scenario_manager &scen_mngr, string mapname)
     for (size_t i = 0; i < scen_mngr.num_experiments(); i++)
     {
         const auto& cur_exp = scen_mngr.get_experiment(i);
-        pad_id start = map.to_padded_id_from_unpadded(uint32_t(cur_exp->startx()), uint32_t(cur_exp->starty()));
-        pad_id target = map.to_padded_id_from_unpadded(uint32_t(cur_exp->goalx()), uint32_t(cur_exp->goaly()));
+        pad_id start = map.to_padded_id_from_unpadded(uint32_t(cur_exp->startx()+1), uint32_t(cur_exp->starty()+1));
+        pad_id target = map.to_padded_id_from_unpadded(uint32_t(cur_exp->goalx()+1), uint32_t(cur_exp->goaly()+1));
         s.get_path(grid_id(start), grid_id(target));
         auto res = s.get_result();
         // if (std::fabs(res.plenth - cur_exp->distance()) > EPSILON) assert(false &&"failed ");
@@ -99,13 +111,25 @@ void run_scenario(warthog::util::scenario_manager &scen_mngr, string mapname)
 
 void run_single_test(warthog::util::scenario_manager &scen_mngr, string mapname, size_t i)
 {
-    warthog::domain::gridmap map(mapname.c_str());
+    auto orig_map = std::make_unique<warthog::domain::gridmap>(mapname.c_str());
+    // pad the top and left side of the map to bug fix
+    warthog::domain::gridmap map(orig_map->header_height() + 1, orig_map->header_width() + 1);
+    for (uint32_t y = 0, ye = orig_map->header_height(), xe = orig_map->header_width(); y < ye; ++y) {
+        pad_id oid = orig_map->to_padded_id_from_unpadded(0, y);
+        pad_id nid = map.to_padded_id_from_unpadded(1, y+1); // (+1,+1) shift
+        for (uint32_t x = 0; x < xe; ++x) {
+            map.bit_or(nid, orig_map->get(oid));
+            oid.id++;
+            nid.id++;
+        }
+    }
+    orig_map = nullptr; // free up memory
     jps::domain::rotate_gridmap rmap(map);
     jps::jump::jump_point_online jps(rmap);
     auto s = Solver<SolverTraits::OutputToPosthoc>(&jps, rmap);
     const auto& cur_exp = scen_mngr.get_experiment(i);
-    pad_id start = map.to_padded_id_from_unpadded(uint32_t(cur_exp->startx()), uint32_t(cur_exp->starty()));
-    pad_id target = map.to_padded_id_from_unpadded(uint32_t(cur_exp->goalx()), uint32_t(cur_exp->goaly()));
+    pad_id start = map.to_padded_id_from_unpadded(uint32_t(cur_exp->startx()+1), uint32_t(cur_exp->starty()+1));
+    pad_id target = map.to_padded_id_from_unpadded(uint32_t(cur_exp->goalx()+1), uint32_t(cur_exp->goaly()+1));
     s.get_path(grid_id(start), grid_id(target));
     auto res = s.get_result();
     std::cout<< "experiment " << i <<":\t";

@@ -6,9 +6,9 @@
 #include <warthog/heuristic/octile_heuristic.h>
 #include <warthog/util/timer.h>
 #include <queue>
-#include <unordered_map>
+#include <algorithm>
+// #include <unordered_map>
 // #include <boost/heap/pairing_heap.hpp>
-#include <boost/heap/pairing_heap.hpp>
 
 // typedef typename boost::heap::fibonacci_heap<search_node>::handle_type handle_t;
 //0x1.6a09e6p0 - root2
@@ -46,6 +46,19 @@ struct experiment_result
     int     updated{};
 };
 
+struct search_node_heap
+{
+    double fvalue;
+    search_node* node;
+    search_node_heap(search_node& n) noexcept : fvalue(n.gval + n.hval), node(&n)
+    { }
+
+    bool operator<( search_node_heap const& rhs ) const
+    {
+        return fvalue > rhs.fvalue;
+    }
+};
+
 template<SolverTraits ST>
 class Solver
 {
@@ -57,14 +70,23 @@ public:
     {
         static_assert(ST == SolverTraits::Default || ST == SolverTraits::OutputToPosthoc);
         m_tracer->set_dim(m_map.table().dim());
-        m_all_node_list.reserve(2048);
+        // init node list
+        m_pq.reserve(2046);
+        m_node_list.resize((uint32_t)m_map.width() * (uint32_t)m_map.height() * 4);
+        for (uint32_t y = 0, ye = (uint32_t)m_map.height(), xe = (uint32_t)m_map.width(); y < ye; ++y)
+        for (uint32_t x = 0; x < xe; ++x)
+        for (uint8_t d = 0; d < 4; ++d) {
+            uint32_t id = ((y * xe + x) << 2) | (uint32_t)d;
+            m_node_list[id].state.id.id = id;
+            m_node_list[id].state.dir = (direction_id)(d|0b100);
+        }
     }
     ~Solver() = default;
     void get_path(grid_id start, grid_id target);
     inline experiment_result get_result(){return m_stats;};
 
 private:
-
+    uint64_t                            m_search_id = 0;
     jump::jump_point_online*            m_jps;
     gridmap_rotate_table_convs          m_map;
     std::shared_ptr<Tracer>             m_tracer;
@@ -76,27 +98,81 @@ private:
     experiment_result                   m_stats;
     warthog::util::timer                m_timer;
     std::vector<rjps_state>             m_succ;
-    std::unordered_map<uint64_t, search_node> m_all_node_list;
-    boost::heap::pairing_heap<search_node> m_pq;
+    std::vector<search_node>            m_node_list;
+    // std::unordered_map<uint64_t, search_node> m_all_node_list;
+    // boost::heap::pairing_heap<search_node_heap> m_pq;
+    std::vector<search_node_heap>       m_pq;
 
-    void expand_node(search_node n);
+    // get search node, reset is called if n->search_id != m_serach_id
+    search_node& get_node_init(uint32_t key);
+    search_node& get_node_init(rjps_state state);
+    // get node, ingore search_id, assert that n->search_id == m_search_id
+    search_node& get_node(uint32_t key);
+    search_node& get_node(rjps_state state);
+    void expand_node(search_node& n);
     template <direction_id D>
-    void expand(search_node cur);
-    void generate(search_node* parent);
+    void expand(search_node& cur);
+    void generate(search_node& parent);
     void insert(rjps_state succ, search_node *pred);
     void insert_start_state(const rjps_state& succ);
     bool target_in_scan_quad(grid_id start, direction_id quad);
     template <ScanAttribute::Orientation O, ScanAttribute::Octants Octant>
-    uint32_t scan_in_bound(grid_id start, search_node parent, uint32_t boundary, direction_id start_d);
+    uint32_t scan_in_bound(grid_id start, search_node& parent, uint32_t boundary, direction_id start_d);
     //initilizes a scan_dir struct based on a cell on a grid and an rjps scan direction
     //returns true if starts on a convex point
     bool init_scan_dir(grid_id start, direction_id p_dir, scan_dir &dir);
     grid_id grid_ray_incident(grid_id from, grid_id to, direction_id d);
     double interval_h(const rjps_state& v);
+
+    void push_queue(search_node& n)
+    {
+        m_pq.emplace_back(n);
+        std::push_heap(m_pq.begin(), m_pq.end());
+    }
+    search_node& pop_queue()
+    {
+        assert(!m_pq.empty());
+        search_node& n = *m_pq.front().node;
+        std::pop_heap(m_pq.begin(), m_pq.end());
+        m_pq.pop_back();
+        return n;
+    }
+    bool empty_queue() noexcept { return m_pq.empty(); }
 };
 
 template <SolverTraits ST>
-inline void Solver<ST>::expand_node(search_node n)
+inline search_node& Solver<ST>::get_node_init(uint32_t key)
+{
+    assert(key < m_node_list.size());
+    search_node& n = m_node_list[key];
+    if (n.search_id != m_search_id) {
+        // init for first time use
+        n.search_id = m_search_id;
+        n.reset();
+    }
+    return n;
+}
+template <SolverTraits ST>
+inline search_node& Solver<ST>::get_node_init(rjps_state state)
+{
+    assert(state.id.id < m_map.table().size() && is_intercardinal_id(state.dir));
+    return get_node_init( state.key() );
+}
+template <SolverTraits ST>
+inline search_node& Solver<ST>::get_node(uint32_t key)
+{
+    assert(key < m_node_list.size());
+    return m_node_list[key];
+}
+template <SolverTraits ST>
+inline search_node& Solver<ST>::get_node(rjps_state state)
+{
+    assert(state.id.id < m_map.table().size() && is_intercardinal_id(state.dir));
+    return get_node( state.key() );
+}
+
+template <SolverTraits ST>
+inline void Solver<ST>::expand_node(search_node& n)
 {
     switch (n.state.dir)
     {
@@ -120,11 +196,11 @@ inline void Solver<ST>::expand_node(search_node n)
 
 template <SolverTraits ST>
 template <direction_id D>
-void Solver<ST>::expand(search_node cur)
+void Solver<ST>::expand(search_node& cur)
 {
     using namespace ScanAttribute;
     static_assert(
-	    D == NORTHEAST_ID || D == NORTHWEST_ID || D == SOUTHEAST_ID || D == SOUTHWEST_ID,
+        is_intercardinal_id(D),
 	    "D must be inter-cardinal.");
     auto cur_coord = m_map.id_to_point(cur.state.id);
     if constexpr(ST == SolverTraits::OutputToPosthoc)
@@ -237,7 +313,7 @@ void Solver<ST>::get_path(grid_id start, grid_id target)
 {
     m_stats = experiment_result{};
     m_pq.clear();
-    m_all_node_list.clear();
+    m_search_id++;
     m_target = target;
     m_tcoord = m_map.id_to_point(target);
     auto start_coord = m_map.id_to_point(start);
@@ -258,49 +334,53 @@ void Solver<ST>::get_path(grid_id start, grid_id target)
     insert_start_state(start_state);
     start_state.dir = SOUTHWEST_ID;
     insert_start_state(start_state);
-    while(!m_pq.empty())
+    while(!empty_queue())
     {
         //pop the node with lowest fval off the heap
-        auto cur = m_pq.top();
+        search_node& cur = pop_queue();
         // std::cout << (cur.gval + cur.hval)<<'\n';
+        if (cur.closed) {
+            // do not repeat expansion
+            continue;
+        }
+        cur.closed = true;
         if(cur.state.id == m_target)
         {
             m_stats.nanos = m_timer.elapsed_time_nano();
             m_stats.plenth = cur.gval;
             break;
         }
-        m_pq.pop();
         // std::cout << (cur.gval + cur.hval)<< " id: " << to_string((uint64_t)cur.state.id) << " size: " +to_string(m_pq.size())+'\n';
         auto cur_coord = m_map.id_to_point(cur.state.id);
         auto exp_start = m_timer.elapsed_time_nano();
         expand_node(cur);
         auto exp_end = m_timer.elapsed_time_nano();
         m_stats.ray_scan_time += exp_end.count()-exp_start.count();
-        auto cur_ptr = &m_all_node_list[cur.get_key()];   //pass the cur node pointer for successors
-        cur_ptr->closed = true;
-        generate(cur_ptr);
+        // auto cur_ptr = get_node(cur.get_key());   //pass the cur node pointer for successors
+        generate(cur);
         if constexpr(ST == SolverTraits::OutputToPosthoc)
         {
             m_tracer->close_node(cur_coord);
         }
     }
-    auto c = m_pq.top();
-    auto stk = std::stack<search_node>{};
-    stk.push(c);
-    auto p = c.parent;
-    while (p != nullptr)
-    {
-        c = *p;
-        p = c.parent;
-        stk.push(c);
-    }
-    stk.pop();
-    while (!stk.empty())
-    {
-        const auto &cur = stk.top();
-        // m_ray.check_target_visible(cur.parent->state.id, cur.state.id, cur.parent->state.dir);
-        stk.pop();
-    }
+
+    // auto c = m_pq.top();
+    // auto stk = std::stack<search_node>{};
+    // stk.push(c);
+    // auto p = c.parent;
+    // while (p != nullptr)
+    // {
+    //     c = *p;
+    //     p = c.parent;
+    //     stk.push(c);
+    // }
+    // stk.pop();
+    // while (!stk.empty())
+    // {
+    //     const auto &cur = stk.top();
+    //     // m_ray.check_target_visible(cur.parent->state.id, cur.state.id, cur.parent->state.dir);
+    //     stk.pop();
+    // }
     if constexpr(ST == SolverTraits::OutputToPosthoc)
     {
         m_tracer->close();
@@ -387,9 +467,9 @@ grid_id Solver<ST>::grid_ray_incident(grid_id from, grid_id to, direction_id d)
 }
 
 template <SolverTraits ST>
-inline void Solver<ST>::generate(search_node* parent)
+inline void Solver<ST>::generate(search_node& parent)
 {
-    auto top_adj = direction_id{}, bottom_adj = top_adj;
+    auto top_adj = direction_id{}, bottom_adj = direction_id{};
     for(rjps_state& succ : m_succ)
     {        
         switch (succ.dir)
@@ -409,12 +489,16 @@ inline void Solver<ST>::generate(search_node* parent)
         default:
             if(succ.id == m_target) 
             {
-                auto n = search_node{succ};
-                n.parent = parent;
-                n.hval = 0;
-                n.gval = m_octile_h.h(n.state.id.id, parent->state.id.id) + parent->gval;
-                m_pq.push(n);
-                return;
+                auto& n = get_node_init(succ);
+                double gval = m_octile_h.h(n.state.id.id, parent.state.id.id) + parent.gval;
+                if (gval < n.gval) {
+                    n.parent = &parent;
+                    n.hval = 0;
+                    n.gval = gval;
+                    n.opend = true;
+                    push_queue(n);
+                    return;
+                }
             }
             else assert(false && "successor dir is NONE");
         }
@@ -423,15 +507,15 @@ inline void Solver<ST>::generate(search_node* parent)
         if(top && bottom) [[unlikely]]
         {
             auto aux_succ = succ;
-            succ.dir = quad.at(get_succ_sector(parent->state.dir, succ.dir, true));
-            insert(succ, parent);
-            aux_succ.dir = quad.at(get_succ_sector(parent->state.dir, aux_succ.dir, false));
-            insert(aux_succ, parent);
+            succ.dir = quad.at(get_succ_sector(parent.state.dir, succ.dir, true));
+            insert(succ, &parent);
+            aux_succ.dir = quad.at(get_succ_sector(parent.state.dir, aux_succ.dir, false));
+            insert(aux_succ, &parent);
         }
         else
         {
-            succ.dir = quad.at(get_succ_sector(parent->state.dir, succ.dir, top));
-            insert(succ, parent);        
+            succ.dir = quad.at(get_succ_sector(parent.state.dir, succ.dir, top));
+            insert(succ, &parent);        
         }
     }
 }
@@ -439,12 +523,15 @@ inline void Solver<ST>::generate(search_node* parent)
 template <SolverTraits ST>
 void Solver<ST>::insert(rjps_state succ, search_node *pred)
 {
-    auto n = search_node{succ};
-    const auto exist = m_all_node_list.find(n.get_key());
+    auto& n = get_node_init(succ);
+    double gval = m_octile_h.h(n.state.id.id, n.parent->state.id.id) + n.parent->gval;
+    if (gval >= n.gval)
+        return; // do not add longer successor
     n.parent = pred;
-    n.gval = m_octile_h.h(n.state.id.id, n.parent->state.id.id) + n.parent->gval;
-    if(exist == m_all_node_list.end())
+    n.gval = gval;
+    if(!n.opend)
     {
+        n.opend = true;
         m_stats.generated++;
         n.hval = interval_h(n.state);
         if constexpr(ST == SolverTraits::OutputToPosthoc)
@@ -455,65 +542,50 @@ void Solver<ST>::insert(rjps_state succ, search_node *pred)
             " ,f: "+ std::to_string(n.gval + n.hval) + 
             " ,dir:" + std::to_string(n.state.dir));
         }
-        boost::heap::pairing_heap<search_node>::handle_type h = m_pq.push(n);
-        (*h).handle = h;
-        auto err = m_all_node_list.emplace(std::make_pair(n.get_key(), *h));        
-        assert(err.second);
+        push_queue(n);
     }
     else
     {
-        auto& e = exist->second;
-        if(n.gval < e.gval)
+        if(n.closed)
         {
-            if(e.closed)
+            n.closed = false;
+            m_stats.reopend++;
+            if constexpr(ST == SolverTraits::OutputToPosthoc)
             {
-                m_stats.reopend++;
-                n.hval = e.hval;
-                boost::heap::pairing_heap<search_node>::handle_type h = m_pq.push(n);
-                (*h).handle = h;
-                exist->second = *h;
-                if constexpr(ST == SolverTraits::OutputToPosthoc)
-                {
-                m_tracer->expand(m_map.id_to_point(n.state.id), "red", 
-                    "re-opening, h: " + std::to_string(n.hval) +
-                    " ,g: " + std::to_string(n.gval) + 
-                    " ,f: "+ std::to_string(n.gval + n.hval) + 
-                    " ,dir:" + std::to_string(n.state.dir));
-                }
-                // assert(false && "reopeing not handled");
+            m_tracer->expand(m_map.id_to_point(n.state.id), "red", 
+                "re-opening, h: " + std::to_string(n.hval) +
+                " ,g: " + std::to_string(n.gval) + 
+                " ,f: "+ std::to_string(n.gval + n.hval) + 
+                " ,dir:" + std::to_string(n.state.dir));
             }
-            else
+            // assert(false && "reopeing not handled");
+        }
+        else
+        {
+            m_stats.updated++;
+            if constexpr(ST == SolverTraits::OutputToPosthoc)
             {
-                m_stats.updated++;
-                n.hval = e.hval;
-                e.gval = n.gval;
-                e.parent = n.parent;
-                if constexpr(ST == SolverTraits::OutputToPosthoc)
-                {
-                m_tracer->expand(m_map.id_to_point(n.state.id), "yellow", 
-                    "updating, h: " + std::to_string(n.hval) +
-                    " ,g: " + std::to_string(n.gval) + 
-                    " ,f: "+ std::to_string(n.gval + n.hval) + 
-                    " ,dir:" + std::to_string(n.state.dir));
-                }
-                m_pq.decrease(e.handle, n);
+            m_tracer->expand(m_map.id_to_point(n.state.id), "yellow", 
+                "updating, h: " + std::to_string(n.hval) +
+                " ,g: " + std::to_string(n.gval) + 
+                " ,f: "+ std::to_string(n.gval + n.hval) + 
+                " ,dir:" + std::to_string(n.state.dir));
             }
         }
+        push_queue(n);
     }
 }
 
 template <SolverTraits ST>
 inline void Solver<ST>::insert_start_state(const rjps_state& succ)
 {
-    auto n = search_node{succ};
+    auto& n = get_node_init(succ);
     n.gval = 0;
     n.hval = interval_h(succ);
     // auto key = std::string(std::to_string((uint64_t)n.state.id) + std::to_string(n.state.dir));
 
-    boost::heap::pairing_heap<search_node>::handle_type h = m_pq.push(n);
-    (*h).handle = h;
-    auto err = m_all_node_list.emplace(std::make_pair(n.get_key(), *h));        
-    assert(err.second);
+    n.opend = true;
+    push_queue(n);
 }
 
 //Scans all visible obstacles in a set orientation, appends succesors to the vector passed in
@@ -525,7 +597,7 @@ inline void Solver<ST>::insert_start_state(const rjps_state& succ)
 //@param dir_info: collection of direction info which includes initial scan direction, subseq scan direction_id and terminating direction
 template <SolverTraits ST>
 template <ScanAttribute::Orientation O, ScanAttribute::Octants Octant>
-uint32_t Solver<ST>::scan_in_bound(grid_id start, search_node parent, uint32_t boundary, direction_id start_d)
+uint32_t Solver<ST>::scan_in_bound(grid_id start, search_node& parent, uint32_t boundary, direction_id start_d)
 {
     using ScanAttribute::Octants;
     using namespace ScanAttribute;
