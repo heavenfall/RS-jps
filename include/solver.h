@@ -72,12 +72,12 @@ public:
         m_tracer->set_dim(m_map.table().dim());
         // init node list
         m_pq.reserve(2046);
-        m_node_list.resize((uint32_t)m_map.width() * (uint32_t)m_map.height() * 4);
-        for (uint32_t y = 0, ye = (uint32_t)m_map.height(), xe = (uint32_t)m_map.width(); y < ye; ++y)
+        m_node_list.resize((uint32_t)m_map.table().width() * (uint32_t)m_map.table().height() * 4);
+        for (uint32_t y = 0, ye = (uint32_t)m_map.table().height(), xe = (uint32_t)m_map.table().width(); y < ye; ++y)
         for (uint32_t x = 0; x < xe; ++x)
         for (uint8_t d = 0; d < 4; ++d) {
             uint32_t id = ((y * xe + x) << 2) | (uint32_t)d;
-            m_node_list[id].state.id.id = id;
+            m_node_list[id].state.id.id = y * xe + x;
             m_node_list[id].state.dir = (direction_id)(d|0b100);
         }
     }
@@ -156,7 +156,9 @@ template <SolverTraits ST>
 inline search_node& Solver<ST>::get_node_init(rjps_state state)
 {
     assert(state.id.id < m_map.table().size() && is_intercardinal_id(state.dir));
-    return get_node_init( state.key() );
+    auto& n = get_node_init( state.key() );
+    assert(n.state.id == state.id && n.state.dir == state.dir);
+    return n;
 }
 template <SolverTraits ST>
 inline search_node& Solver<ST>::get_node(uint32_t key)
@@ -168,7 +170,9 @@ template <SolverTraits ST>
 inline search_node& Solver<ST>::get_node(rjps_state state)
 {
     assert(state.id.id < m_map.table().size() && is_intercardinal_id(state.dir));
-    return get_node( state.key() );
+    auto& n = get_node( state.key() );
+    assert(n.state.id == state.id && n.state.dir == state.dir);
+    return n;
 }
 
 template <SolverTraits ST>
@@ -321,7 +325,7 @@ void Solver<ST>::get_path(grid_id start, grid_id target)
     {
         m_tracer->init(start_coord, m_tcoord);
     }
-    auto cmp = [](search_node a, search_node b){return (a.gval + a.hval) > (b.gval + b.hval);};
+    // auto cmp = [](search_node a, search_node b){return (a.gval + a.hval) > (b.gval + b.hval);};
     m_succ.reserve(2048);
     m_timer.start();
     auto start_state = rjps_state{};
@@ -524,7 +528,7 @@ template <SolverTraits ST>
 void Solver<ST>::insert(rjps_state succ, search_node *pred)
 {
     auto& n = get_node_init(succ);
-    double gval = m_octile_h.h(n.state.id.id, n.parent->state.id.id) + n.parent->gval;
+    double gval = m_octile_h.h(n.state.id.id, pred->state.id.id) + pred->gval;
     if (gval >= n.gval)
         return; // do not add longer successor
     n.parent = pred;
